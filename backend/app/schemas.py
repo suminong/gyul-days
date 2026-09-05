@@ -7,6 +7,10 @@ class EntryCreate(BaseModel):
     content: str
 
 
+class EntryUpdate(BaseModel):
+    content: str | None = None
+
+
 class EntryResponse(BaseModel):
     id: int
     content: str
