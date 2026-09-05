@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -9,9 +9,7 @@ from app.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True,
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     username: Mapped[str] = mapped_column(
         String(50),
@@ -38,13 +36,15 @@ class User(Base):
         nullable=False,
     )
 
+    entries: Mapped[list["Entry"]] = relationship(
+        back_populates="author"
+    )
+
 
 class Entry(Base):
     __tablename__ = "entries"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True,
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     content: Mapped[str] = mapped_column(
         String,
@@ -55,4 +55,13 @@ class Entry(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+    )
+
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+
+    author: Mapped["User"] = relationship(
+        back_populates="entries"
     )

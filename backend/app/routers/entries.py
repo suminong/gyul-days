@@ -6,6 +6,7 @@ from app import models
 from app.database import get_db
 from app.schemas import EntryCreate, EntryResponse, EntryUpdate
 
+from app.security import get_current_user
 
 router = APIRouter(
     tags=["entries"],
@@ -20,9 +21,11 @@ router = APIRouter(
 def create_entry(
     entry: EntryCreate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     new_entry = models.Entry(
         content=entry.content,
+        author_id=current_user.id,
     )
 
     db.add(new_entry)
@@ -38,14 +41,15 @@ def create_entry(
 )
 def get_entries(
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
-    statement = select(models.Entry).order_by(
-        models.Entry.created_at.desc()
+    statement = (
+        select(models.Entry)
+        .where(models.Entry.author_id == current_user.id)
+        .order_by(models.Entry.created_at.desc())
     )
 
-    entries = db.scalars(statement).all()
-
-    return entries
+    return db.scalars(statement).all()
 
 
 @router.get(
@@ -100,6 +104,7 @@ def update_entry(
 def delete_entry(
     entry_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     entry = db.get(models.Entry, entry_id)
 
@@ -107,6 +112,12 @@ def delete_entry(
         raise HTTPException(
             status_code=404,
             detail="Entry not found",
+        )
+
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this entry",
         )
 
     db.delete(entry)
