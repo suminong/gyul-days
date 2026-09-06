@@ -4,11 +4,22 @@ export type Author = {
 };
 
 
+export type EntryImage = {
+  id: number;
+  entry_id: number;
+  file_path: string;
+  original_filename: string | null;
+  content_type: string | null;
+  created_at: string;
+};
+
+
 export type Entry = {
   id: number;
   content: string;
   created_at: string;
   author: Author;
+  images: EntryImage[];
 };
 
 

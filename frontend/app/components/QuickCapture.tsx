@@ -5,6 +5,7 @@ import {
   FormEvent,
   KeyboardEvent,
   useRef,
+  useState,
 } from "react";
 
 
@@ -16,7 +17,9 @@ type QuickCaptureProps = {
     value: string
   ) => void;
 
-  onSave: () => Promise<void>;
+  onSave: (
+    files: File[]
+  ) => Promise<boolean>;
 };
 
 
@@ -29,6 +32,14 @@ export default function QuickCapture({
   const textareaRef =
     useRef<HTMLTextAreaElement>(null);
 
+  const fileInputRef =
+    useRef<HTMLInputElement>(null);
+
+  const [
+    selectedFiles,
+    setSelectedFiles,
+  ] = useState<File[]>([]);
+
 
   function resizeTextarea() {
     const textarea =
@@ -38,7 +49,8 @@ export default function QuickCapture({
       return;
     }
 
-    textarea.style.height = "auto";
+    textarea.style.height =
+      "auto";
 
     textarea.style.height =
       `${textarea.scrollHeight}px`;
@@ -46,7 +58,8 @@ export default function QuickCapture({
 
 
   function handleChange(
-    event: ChangeEvent<HTMLTextAreaElement>
+    event:
+      ChangeEvent<HTMLTextAreaElement>
   ) {
     onContentChange(
       event.target.value
@@ -58,22 +71,79 @@ export default function QuickCapture({
   }
 
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
+  function handleFileChange(
+    event:
+      ChangeEvent<HTMLInputElement>
   ) {
-    event.preventDefault();
+    const files =
+      Array.from(
+        event.target.files ?? []
+      );
 
-    await onSave();
+    setSelectedFiles(files);
+  }
 
-    if (textareaRef.current) {
+
+  function removeFile(
+    indexToRemove: number
+  ) {
+    setSelectedFiles(
+      (currentFiles) =>
+        currentFiles.filter(
+          (_, index) =>
+            index !==
+            indexToRemove
+        )
+    );
+  }
+
+
+  function clearFiles() {
+    setSelectedFiles([]);
+
+    if (
+      fileInputRef.current
+    ) {
+      fileInputRef.current.value =
+        "";
+    }
+  }
+
+
+  async function save() {
+    const success =
+      await onSave(
+        selectedFiles
+      );
+
+    if (!success) {
+      return;
+    }
+
+    clearFiles();
+
+    if (
+      textareaRef.current
+    ) {
       textareaRef.current.style.height =
         "auto";
     }
   }
 
 
+  async function handleSubmit(
+    event:
+      FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    await save();
+  }
+
+
   function handleKeyDown(
-    event: KeyboardEvent<HTMLTextAreaElement>
+    event:
+      KeyboardEvent<HTMLTextAreaElement>
   ) {
     if (
       (
@@ -84,7 +154,7 @@ export default function QuickCapture({
     ) {
       event.preventDefault();
 
-      onSave();
+      save();
     }
   }
 
@@ -94,13 +164,16 @@ export default function QuickCapture({
       onSubmit={handleSubmit}
       className="mb-14"
     >
+
       <div className="rounded-3xl border border-border bg-surface p-1 shadow-sm">
 
         <textarea
           ref={textareaRef}
           value={content}
           onChange={handleChange}
-          onKeyDown={handleKeyDown}
+          onKeyDown={
+            handleKeyDown
+          }
           placeholder="뭐야?"
           rows={3}
           className="
@@ -122,11 +195,108 @@ export default function QuickCapture({
         />
 
 
+        {/* Selected photos */}
+        {selectedFiles.length >
+          0 && (
+          <div className="px-4 pb-3">
+
+            <div className="flex flex-wrap gap-2">
+
+              {selectedFiles.map(
+                (
+                  file,
+                  index
+                ) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className="
+                      flex
+                      max-w-full
+                      items-center
+                      gap-2
+                      rounded-full
+                      border
+                      border-orange-light
+                      bg-background
+                      px-3
+                      py-1.5
+                    "
+                  >
+
+                    <span className="max-w-[180px] truncate text-xs text-text-muted">
+                      📷 {file.name}
+                    </span>
+
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeFile(
+                          index
+                        )
+                      }
+                      className="text-xs text-text-muted transition hover:text-orange-dark"
+                    >
+                      ×
+                    </button>
+
+                  </div>
+                )
+              )}
+
+            </div>
+
+          </div>
+        )}
+
+
         <div className="flex items-center justify-between px-4 pb-3">
 
-          <span className="text-xs text-text-muted">
-            ⌘ + enter to save
-          </span>
+          <div className="flex items-center gap-4">
+
+            {/* Hidden real file input */}
+            <input
+              ref={
+                fileInputRef
+              }
+              type="file"
+              accept="
+                image/jpeg,
+                image/png,
+                image/webp
+              "
+              multiple
+              onChange={
+                handleFileChange
+              }
+              className="hidden"
+            />
+
+
+            {/* Pretty photo button */}
+            <button
+              type="button"
+              onClick={() =>
+                fileInputRef.current?.click()
+              }
+              className="
+                text-xs
+                font-medium
+                text-orange-dark
+                transition
+                hover:text-orange
+              "
+            >
+              + photo
+            </button>
+
+
+            <span className="hidden text-xs text-text-muted sm:inline">
+              ⌘ + enter to save
+            </span>
+
+          </div>
+
 
           <button
             type="submit"
@@ -156,6 +326,7 @@ export default function QuickCapture({
         </div>
 
       </div>
+
     </form>
   );
 }

@@ -286,13 +286,15 @@ export default function Home() {
   }, [selectedSpaceId]);
 
 
-  async function saveEntry() {
+  async function saveEntry(
+    files: File[]
+  ): Promise<boolean> {
     if (
       !content.trim() ||
       saving ||
       selectedSpaceId === null
     ) {
-      return;
+      return false;
     }
 
 
@@ -300,17 +302,17 @@ export default function Home() {
 
     if (!token) {
       handleUnauthorized();
-      return;
+      return false;
     }
 
 
     setSaving(true);
-
     clearNotices();
 
 
     try {
-      const response =
+      // 1. First create the text entry
+      const entryResponse =
         await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries`,
           {
@@ -324,47 +326,113 @@ export default function Home() {
                 `Bearer ${token}`,
             },
 
-            body:
-              JSON.stringify({
-                content:
-                  content.trim(),
-              }),
+            body: JSON.stringify({
+              content:
+                content.trim(),
+            }),
           }
         );
 
 
       if (
-        response.status ===
+        entryResponse.status ===
         401
       ) {
         handleUnauthorized();
-        return;
+        return false;
       }
 
 
-      if (!response.ok) {
-        throw new Error();
+      if (
+        !entryResponse.ok
+      ) {
+        throw new Error(
+          "Failed to create entry"
+        );
       }
 
 
-      const newEntry =
-        await response.json();
+      const newEntry: Entry =
+        await entryResponse.json();
 
 
-      setEntries(
-        (currentEntries) => [
-          newEntry,
-          ...currentEntries,
-        ]
+      // 2. Upload each selected image
+      let imageUploadFailed =
+        false;
+
+
+      for (const file of files) {
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file
+        );
+
+
+        const imageResponse =
+          await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${newEntry.id}/images`,
+            {
+              method: "POST",
+
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body: formData,
+            }
+          );
+
+
+        if (
+          imageResponse.status ===
+          401
+        ) {
+          handleUnauthorized();
+          return false;
+        }
+
+
+        if (
+          !imageResponse.ok
+        ) {
+          imageUploadFailed =
+            true;
+        }
+      }
+
+
+      // 3. Clear text
+      setContent("");
+
+
+      // 4. Reload feed so uploaded
+      // images appear immediately
+      await loadEntries(
+        selectedSpaceId
       );
 
 
-      setContent("");
+      if (
+        imageUploadFailed
+      ) {
+        setError(
+          "the entry was saved, but one or more photos couldn't upload."
+        );
+      }
+
+
+      return true;
 
     } catch {
       setError(
         "couldn't save this entry."
       );
+
+      return false;
 
     } finally {
       setSaving(false);

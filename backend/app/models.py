@@ -133,3 +133,50 @@ class Entry(Base):
     space: Mapped["Space | None"] = relationship(
         back_populates="entries",
     )
+
+    images: Mapped[list["EntryImage"]] = relationship(
+        back_populates="entry",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+ 
+class EntryImage(Base):
+    __tablename__ = "entry_images"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    entry_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "entries.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    file_path: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+    )
+
+    original_filename: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    content_type: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    entry: Mapped["Entry"] = relationship(
+        back_populates="images",
+    )

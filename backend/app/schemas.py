@@ -10,12 +10,26 @@ class EntryCreate(BaseModel):
 class EntryUpdate(BaseModel):
     content: str | None = None
 
-
 class EntryAuthor(BaseModel):
     id: int
     username: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class EntryImageResponse(BaseModel):
+    id: int
+    entry_id: int
+    file_path: str
+    original_filename: str | None
+    content_type: str | None
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 
 class EntryResponse(BaseModel):
@@ -24,7 +38,13 @@ class EntryResponse(BaseModel):
     created_at: datetime
     author: EntryAuthor
 
-    model_config = ConfigDict(from_attributes=True)
+    images: list[EntryImageResponse] = Field(
+        default_factory=list
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 
 class UserCreate(BaseModel):
@@ -80,3 +100,4 @@ class SpaceUpdate(BaseModel):
         min_length=1,
         max_length=100,
     )
+ 

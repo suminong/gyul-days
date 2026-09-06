@@ -395,6 +395,27 @@ export default function JournalFeed({
                           }
                         </p>
 
+                        {entry.images.length > 0 && (
+                            <div className="mt-4 space-y-3">
+                                {entry.images.map((image) => (
+                                <img
+                                    key={image.id}
+                                    src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
+                                    alt={
+                                    image.original_filename ??
+                                    "journal image"
+                                    }
+                                    className="
+                                    max-h-[520px]
+                                    w-full
+                                    rounded-2xl
+                                    object-cover
+                                    "
+                                />
+                                ))}
+                            </div>
+                        )}
+
 
                         {isMine && (
                           <div className="mt-3 flex justify-end gap-3">
