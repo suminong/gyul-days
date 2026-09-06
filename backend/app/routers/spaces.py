@@ -4,13 +4,15 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import get_db
+from app.security import get_current_user
 from app.schemas import (
+    EntryCreate,
+    EntryResponse,
     SpaceCreate,
     SpaceMemberAdd,
     SpaceResponse,
+    SpaceUpdate,
 )
-from app.security import get_current_user
-
 
 router = APIRouter(
     prefix="/spaces",
@@ -136,3 +138,116 @@ def add_member(
     return {
         "message": f"{user.username} added to space"
     }
+
+
+
+@router.get(
+    "/{space_id}/entries",
+    response_model=list[EntryResponse],
+)
+def get_space_entries(
+    space_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+    statement = (
+        select(models.Entry)
+        .where(models.Entry.space_id == space_id)
+        .order_by(models.Entry.created_at.desc())
+    )
+
+    return db.scalars(statement).all()
+
+@router.post(
+    "/{space_id}/entries",
+    response_model=EntryResponse,
+    status_code=201,
+)
+def create_space_entry(
+    space_id: int,
+    entry_data: EntryCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+    entry = models.Entry(
+        content=entry_data.content,
+        author_id=current_user.id,
+        space_id=space_id,
+    )
+
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    return entry
+
+
+@router.patch(
+    "/{space_id}",
+    response_model=SpaceResponse,
+)
+def update_space(
+    space_id: int,
+    space_data: SpaceUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+    if membership.role != "owner":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the owner can rename this space",
+        )
+
+    space = db.get(models.Space, space_id)
+
+    if space is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Space not found",
+        )
+
+    space.name = space_data.name
+
+    db.commit()
+    db.refresh(space)
+
+    return space
