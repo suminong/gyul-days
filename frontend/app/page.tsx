@@ -42,7 +42,6 @@ type Space = {
 
 function getDateLabel(dateString: string) {
   const date = new Date(dateString);
-
   const today = new Date();
 
   const yesterday = new Date();
@@ -91,9 +90,9 @@ function groupEntriesByDate(entries: Entry[]) {
 
 export default function Home() {
   const router = useRouter();
+
   const textareaRef =
     useRef<HTMLTextAreaElement>(null);
-
 
   const [entries, setEntries] =
     useState<Entry[]>([]);
@@ -123,17 +122,52 @@ export default function Home() {
   const [error, setError] =
     useState("");
 
+  const [message, setMessage] =
+    useState("");
 
-  // Space rename
+
+  // Rename space
   const [
     editingSpace,
     setEditingSpace,
   ] = useState(false);
 
+  const [spaceName, setSpaceName] =
+    useState("");
+
+
+  // Create space
   const [
-    spaceName,
-    setSpaceName,
+    creatingSpace,
+    setCreatingSpace,
+  ] = useState(false);
+
+  const [
+    newSpaceName,
+    setNewSpaceName,
   ] = useState("");
+
+  const [
+    creatingSpaceLoading,
+    setCreatingSpaceLoading,
+  ] = useState(false);
+
+
+  // Invite member
+  const [
+    invitingMember,
+    setInvitingMember,
+  ] = useState(false);
+
+  const [
+    inviteUsername,
+    setInviteUsername,
+  ] = useState("");
+
+  const [
+    inviteLoading,
+    setInviteLoading,
+  ] = useState(false);
 
 
   const selectedSpace = spaces.find(
@@ -152,9 +186,19 @@ export default function Home() {
   }
 
 
+  function clearNotices() {
+    setError("");
+    setMessage("");
+  }
+
+
   function handleUnauthorized() {
     localStorage.removeItem(
       "access_token"
+    );
+
+    localStorage.removeItem(
+      "selected_space_id"
     );
 
     router.push("/login");
@@ -223,6 +267,7 @@ export default function Home() {
       setError(
         "couldn't load your spaces."
       );
+
       setLoading(false);
       return;
     }
@@ -238,11 +283,12 @@ export default function Home() {
           "selected_space_id"
         );
 
-      const savedSpace = data.find(
-        (space) =>
-          space.id ===
-          Number(savedSpaceId)
-      );
+      const savedSpace =
+        data.find(
+          (space) =>
+            space.id ===
+            Number(savedSpaceId)
+        );
 
       if (savedSpace) {
         setSelectedSpaceId(
@@ -254,6 +300,8 @@ export default function Home() {
         );
       }
     } else {
+      setSelectedSpaceId(null);
+      setEntries([]);
       setLoading(false);
     }
   }
@@ -290,6 +338,7 @@ export default function Home() {
       setError(
         "you don't have access to this space."
       );
+
       setLoading(false);
       return;
     }
@@ -298,6 +347,7 @@ export default function Home() {
       setError(
         "couldn't load this space."
       );
+
       setLoading(false);
       return;
     }
@@ -328,6 +378,7 @@ export default function Home() {
       );
 
       setEditingSpace(false);
+      setInvitingMember(false);
     }
   }, [selectedSpaceId]);
 
@@ -364,6 +415,8 @@ export default function Home() {
   function handleSpaceChange(
     event: ChangeEvent<HTMLSelectElement>
   ) {
+    clearNotices();
+
     setEntries([]);
 
     setSelectedSpaceId(
@@ -389,7 +442,7 @@ export default function Home() {
     }
 
     setSaving(true);
-    setError("");
+    clearNotices();
 
     try {
       const response = await fetch(
@@ -419,18 +472,8 @@ export default function Home() {
         return;
       }
 
-      if (
-        response.status === 403
-      ) {
-        throw new Error(
-          "No access to space"
-        );
-      }
-
       if (!response.ok) {
-        throw new Error(
-          "Failed to create entry"
-        );
+        throw new Error();
       }
 
       const newEntry =
@@ -453,7 +496,7 @@ export default function Home() {
       }
     } catch {
       setError(
-        "couldn't save this entry. try again."
+        "couldn't save this entry."
       );
     } finally {
       setSaving(false);
@@ -485,6 +528,87 @@ export default function Home() {
   }
 
 
+  async function createSpace(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!newSpaceName.trim()) {
+      return;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    setCreatingSpaceLoading(true);
+    clearNotices();
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/spaces`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            name:
+              newSpaceName.trim(),
+          }),
+        }
+      );
+
+      if (
+        response.status === 401
+      ) {
+        handleUnauthorized();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error();
+      }
+
+      const newSpace: Space =
+        await response.json();
+
+      setSpaces(
+        (currentSpaces) => [
+          newSpace,
+          ...currentSpaces,
+        ]
+      );
+
+      setSelectedSpaceId(
+        newSpace.id
+      );
+
+      setNewSpaceName("");
+      setCreatingSpace(false);
+
+      setMessage(
+        `"${newSpace.name}" 만들었어 🍊`
+      );
+    } catch {
+      setError(
+        "couldn't create the space."
+      );
+    } finally {
+      setCreatingSpaceLoading(false);
+    }
+  }
+
+
   async function renameSpace() {
     if (
       selectedSpaceId === null ||
@@ -500,7 +624,7 @@ export default function Home() {
       return;
     }
 
-    setError("");
+    clearNotices();
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}`,
@@ -516,7 +640,8 @@ export default function Home() {
         },
 
         body: JSON.stringify({
-          name: spaceName.trim(),
+          name:
+            spaceName.trim(),
         }),
       }
     );
@@ -559,6 +684,112 @@ export default function Home() {
     );
 
     setEditingSpace(false);
+
+    setMessage(
+      "space name updated."
+    );
+  }
+
+
+  async function inviteMember(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (
+      selectedSpaceId === null ||
+      !inviteUsername.trim()
+    ) {
+      return;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    setInviteLoading(true);
+    clearNotices();
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/members`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            username:
+              inviteUsername.trim(),
+          }),
+        }
+      );
+
+      if (
+        response.status === 401
+      ) {
+        handleUnauthorized();
+        return;
+      }
+
+      const data =
+        await response.json();
+
+      if (
+        response.status === 403
+      ) {
+        setError(
+          data.detail ??
+            "only the owner can invite members."
+        );
+        return;
+      }
+
+      if (
+        response.status === 404
+      ) {
+        setError(
+          "couldn't find that username."
+        );
+        return;
+      }
+
+      if (
+        response.status === 409
+      ) {
+        setError(
+          "that person is already in this space."
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error();
+      }
+
+      setMessage(
+        `${inviteUsername.trim()} joined this space 🍊`
+      );
+
+      setInviteUsername("");
+      setInvitingMember(false);
+
+    } catch {
+      setError(
+        "couldn't add this person."
+      );
+    } finally {
+      setInviteLoading(false);
+    }
   }
 
 
@@ -567,19 +798,46 @@ export default function Home() {
       return;
     }
 
+    clearNotices();
+
     setSpaceName(
       selectedSpace.name
     );
 
     setEditingSpace(true);
-    setError("");
+    setCreatingSpace(false);
+    setInvitingMember(false);
   }
 
 
-  function cancelEditingSpace() {
+  function startCreatingSpace() {
+    clearNotices();
+
+    setCreatingSpace(true);
     setEditingSpace(false);
+    setInvitingMember(false);
+  }
+
+
+  function startInvitingMember() {
+    clearNotices();
+
+    setInvitingMember(true);
+    setEditingSpace(false);
+    setCreatingSpace(false);
+  }
+
+
+  function closeSpaceTools() {
+    setEditingSpace(false);
+    setCreatingSpace(false);
+    setInvitingMember(false);
+
     setSpaceName("");
-    setError("");
+    setNewSpaceName("");
+    setInviteUsername("");
+
+    clearNotices();
   }
 
 
@@ -621,9 +879,7 @@ export default function Home() {
 
               {currentUser && (
                 <span className="text-sm text-text-muted">
-                  {
-                    currentUser.username
-                  }
+                  {currentUser.username}
                 </span>
               )}
 
@@ -639,181 +895,384 @@ export default function Home() {
           </div>
 
 
-          {/* Space selector */}
-          {spaces.length > 0 && (
-            <div>
+          {/* Space title + controls */}
+          <div className="mb-2 flex items-center justify-between">
 
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.15em] text-text-muted">
-                space
+            <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-muted">
+              space
+            </p>
+
+            <button
+              type="button"
+              onClick={startCreatingSpace}
+              className="text-xs font-medium text-orange-dark transition hover:text-orange"
+            >
+              + new space
+            </button>
+
+          </div>
+
+
+          {/* Space selector */}
+          {spaces.length > 0 && !editingSpace && (
+            <div className="flex gap-2">
+
+              <select
+                value={
+                  selectedSpaceId ?? ""
+                }
+                onChange={
+                  handleSpaceChange
+                }
+                className="
+                  min-w-0
+                  flex-1
+                  rounded-2xl
+                  border
+                  border-border
+                  bg-surface
+                  px-4
+                  py-3
+                  text-sm
+                  font-medium
+                  text-orange-dark
+                  outline-none
+                  transition
+                  focus:border-orange
+                "
+              >
+
+                {spaces.map(
+                  (space) => (
+                    <option
+                      key={space.id}
+                      value={space.id}
+                    >
+                      {space.name}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+
+              <button
+                type="button"
+                onClick={
+                  startEditingSpace
+                }
+                className="
+                  rounded-2xl
+                  border
+                  border-border
+                  bg-surface
+                  px-4
+                  text-sm
+                  text-text-muted
+                  transition
+                  hover:border-orange-light
+                  hover:text-orange-dark
+                "
+              >
+                edit
+              </button>
+
+
+              <button
+                type="button"
+                onClick={
+                  startInvitingMember
+                }
+                className="
+                  rounded-2xl
+                  border
+                  border-border
+                  bg-surface
+                  px-4
+                  text-sm
+                  text-text-muted
+                  transition
+                  hover:border-orange-light
+                  hover:text-orange-dark
+                "
+              >
+                invite
+              </button>
+
+            </div>
+          )}
+
+
+          {/* Rename space */}
+          {editingSpace && (
+            <div className="flex gap-2">
+
+              <input
+                value={spaceName}
+                onChange={(event) =>
+                  setSpaceName(
+                    event.target.value
+                  )
+                }
+                autoFocus
+                className="
+                  min-w-0
+                  flex-1
+                  rounded-2xl
+                  border
+                  border-orange
+                  bg-surface
+                  px-4
+                  py-3
+                  text-sm
+                  text-text
+                  outline-none
+                "
+              />
+
+              <button
+                type="button"
+                onClick={renameSpace}
+                className="
+                  rounded-2xl
+                  bg-orange
+                  px-4
+                  text-sm
+                  text-white
+                  hover:bg-orange-dark
+                "
+              >
+                save
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  closeSpaceTools
+                }
+                className="
+                  rounded-2xl
+                  border
+                  border-border
+                  bg-surface
+                  px-4
+                  text-sm
+                  text-text-muted
+                "
+              >
+                cancel
+              </button>
+
+            </div>
+          )}
+
+
+          {/* Create new space */}
+          {creatingSpace && (
+            <form
+              onSubmit={createSpace}
+              className="mt-3 rounded-3xl border border-border bg-surface p-4"
+            >
+
+              <p className="mb-3 text-sm font-medium text-orange-dark">
+                새 Space 만들기
               </p>
 
+              <div className="flex gap-2">
 
-              {!editingSpace ? (
-                <div className="flex gap-2">
+                <input
+                  value={
+                    newSpaceName
+                  }
+                  onChange={(event) =>
+                    setNewSpaceName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="space name"
+                  autoFocus
+                  className="
+                    min-w-0
+                    flex-1
+                    rounded-2xl
+                    border
+                    border-border
+                    bg-background
+                    px-4
+                    py-3
+                    text-sm
+                    text-text
+                    outline-none
+                    focus:border-orange
+                  "
+                />
 
-                  <select
-                    value={
-                      selectedSpaceId ??
-                      ""
-                    }
-                    onChange={
-                      handleSpaceChange
-                    }
-                    className="
-                      min-w-0
-                      flex-1
-                      rounded-2xl
-                      border
-                      border-border
-                      bg-surface
-                      px-4
-                      py-3
-                      text-sm
-                      font-medium
-                      text-orange-dark
-                      outline-none
-                      transition
-                      focus:border-orange
-                    "
-                  >
-                    {spaces.map(
-                      (space) => (
-                        <option
-                          key={
-                            space.id
-                          }
-                          value={
-                            space.id
-                          }
-                        >
-                          {
-                            space.name
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
+                <button
+                  type="submit"
+                  disabled={
+                    creatingSpaceLoading ||
+                    !newSpaceName.trim()
+                  }
+                  className="
+                    rounded-2xl
+                    bg-orange
+                    px-4
+                    text-sm
+                    text-white
+                    hover:bg-orange-dark
+                    disabled:opacity-40
+                  "
+                >
+                  {creatingSpaceLoading
+                    ? "creating..."
+                    : "create"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    closeSpaceTools
+                  }
+                  className="
+                    rounded-2xl
+                    border
+                    border-border
+                    px-4
+                    text-sm
+                    text-text-muted
+                  "
+                >
+                  cancel
+                </button>
+
+              </div>
+
+            </form>
+          )}
 
 
-                  <button
-                    type="button"
-                    onClick={
-                      startEditingSpace
-                    }
-                    className="
-                      rounded-2xl
-                      border
-                      border-border
-                      bg-surface
-                      px-4
-                      text-sm
-                      text-text-muted
-                      transition
-                      hover:border-orange-light
-                      hover:text-orange-dark
-                    "
-                  >
-                    edit
-                  </button>
+          {/* Invite member */}
+          {invitingMember &&
+            selectedSpaceId !== null && (
+              <form
+                onSubmit={
+                  inviteMember
+                }
+                className="mt-3 rounded-3xl border border-border bg-surface p-4"
+              >
 
-                </div>
-              ) : (
-                <div className="flex gap-2">
+                <p className="text-sm font-medium text-orange-dark">
+                  친구 추가하기
+                </p>
+
+                <p className="mt-1 text-xs text-text-muted">
+                  친구의 Gyul Days username을 입력해.
+                </p>
+
+                <div className="mt-3 flex gap-2">
 
                   <input
                     value={
-                      spaceName
+                      inviteUsername
                     }
                     onChange={(
                       event
                     ) =>
-                      setSpaceName(
+                      setInviteUsername(
                         event.target
                           .value
                       )
                     }
+                    placeholder="username"
                     autoFocus
                     className="
                       min-w-0
                       flex-1
                       rounded-2xl
                       border
-                      border-orange
-                      bg-surface
+                      border-border
+                      bg-background
                       px-4
                       py-3
                       text-sm
                       text-text
                       outline-none
+                      focus:border-orange
                     "
                   />
 
-
                   <button
-                    type="button"
-                    onClick={
-                      renameSpace
-                    }
+                    type="submit"
                     disabled={
-                      !spaceName.trim()
+                      inviteLoading ||
+                      !inviteUsername.trim()
                     }
                     className="
                       rounded-2xl
                       bg-orange
                       px-4
                       text-sm
-                      font-medium
                       text-white
-                      transition
                       hover:bg-orange-dark
                       disabled:opacity-40
                     "
                   >
-                    save
+                    {inviteLoading
+                      ? "adding..."
+                      : "add"}
                   </button>
-
 
                   <button
                     type="button"
                     onClick={
-                      cancelEditingSpace
+                      closeSpaceTools
                     }
                     className="
                       rounded-2xl
                       border
                       border-border
-                      bg-surface
                       px-4
                       text-sm
                       text-text-muted
-                      transition
-                      hover:text-orange-dark
                     "
                   >
                     cancel
                   </button>
 
                 </div>
-              )}
 
-            </div>
-          )}
+              </form>
+            )}
 
         </header>
 
 
+        {/* Success / Error */}
+        {message && (
+          <p className="mb-6 rounded-2xl bg-orange-light/20 px-4 py-3 text-sm text-orange-dark">
+            {message}
+          </p>
+        )}
+
+        {error && (
+          <p className="mb-6 rounded-2xl bg-orange-light/20 px-4 py-3 text-sm text-orange-dark">
+            {error}
+          </p>
+        )}
+
+
         {/* No spaces */}
         {!loading &&
-          spaces.length === 0 && (
-            <div className="mb-12 rounded-3xl border border-border bg-surface p-6 text-center">
+          spaces.length === 0 &&
+          !creatingSpace && (
+            <div className="mb-12 rounded-3xl border border-border bg-surface p-8 text-center">
 
               <p className="text-sm font-medium text-orange-dark">
-                아직 space가 없어.
+                아직 Space가 없어.
               </p>
 
-              <p className="mt-2 text-xs leading-5 text-text-muted">
-                첫 shared space를
-                만들어줘.
+              <p className="mt-2 text-xs text-text-muted">
+                위의 + new space를 눌러서 하나 만들어봐.
               </p>
 
             </div>
@@ -830,9 +1289,7 @@ export default function Home() {
             <div className="rounded-3xl border border-border bg-surface p-1 shadow-sm">
 
               <textarea
-                ref={
-                  textareaRef
-                }
+                ref={textareaRef}
                 value={content}
                 onChange={
                   handleContentChange
@@ -859,7 +1316,6 @@ export default function Home() {
                   placeholder:text-text-muted
                 "
               />
-
 
               <div className="flex items-center justify-between px-4 pb-3">
 
@@ -900,14 +1356,6 @@ export default function Home() {
         )}
 
 
-        {/* Errors */}
-        {error && (
-          <p className="mb-6 rounded-2xl bg-orange-light/20 px-4 py-3 text-sm text-orange-dark">
-            {error}
-          </p>
-        )}
-
-
         {/* Feed */}
         <section>
 
@@ -920,8 +1368,7 @@ export default function Home() {
 
           {!loading &&
             selectedSpaceId !== null &&
-            entries.length ===
-              0 && (
+            entries.length === 0 && (
               <div className="py-12 text-center">
 
                 <p className="text-sm text-text-muted">
@@ -929,8 +1376,7 @@ export default function Home() {
                 </p>
 
                 <p className="mt-1 text-xs text-text-muted">
-                  둘 중 누가 먼저
-                  쓸까?
+                  둘 중 누가 먼저 쓸까?
                 </p>
 
               </div>
@@ -957,9 +1403,7 @@ export default function Home() {
                       <div className="mb-5 flex items-center gap-3">
 
                         <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-orange">
-                          {
-                            dateLabel
-                          }
+                          {dateLabel}
                         </h2>
 
                         <div className="h-px flex-1 bg-border" />
@@ -967,53 +1411,50 @@ export default function Home() {
                       </div>
 
 
-                      <div>
-                        {dateEntries.map(
-                          (entry) => (
-                            <article
-                              key={
-                                entry.id
-                              }
-                              className="border-b border-border py-6 first:pt-0"
-                            >
+                      {dateEntries.map(
+                        (entry) => (
+                          <article
+                            key={
+                              entry.id
+                            }
+                            className="border-b border-border py-6 first:pt-0"
+                          >
 
-                              <div className="mb-3 flex items-center justify-between gap-4">
+                            <div className="mb-3 flex items-center justify-between gap-4">
 
-                                <span className="text-sm font-medium text-orange-dark">
-                                  {
-                                    entry
-                                      .author
-                                      .username
-                                  }
-                                </span>
-
-                                <time className="text-xs text-text-muted">
-                                  {new Date(
-                                    entry.created_at
-                                  ).toLocaleTimeString(
-                                    undefined,
-                                    {
-                                      hour:
-                                        "numeric",
-                                      minute:
-                                        "2-digit",
-                                    }
-                                  )}
-                                </time>
-
-                              </div>
-
-
-                              <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
+                              <span className="text-sm font-medium text-orange-dark">
                                 {
-                                  entry.content
+                                  entry
+                                    .author
+                                    .username
                                 }
-                              </p>
+                              </span>
 
-                            </article>
-                          )
-                        )}
-                      </div>
+                              <time className="text-xs text-text-muted">
+                                {new Date(
+                                  entry.created_at
+                                ).toLocaleTimeString(
+                                  undefined,
+                                  {
+                                    hour:
+                                      "numeric",
+                                    minute:
+                                      "2-digit",
+                                  }
+                                )}
+                              </time>
+
+                            </div>
+
+                            <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
+                              {
+                                entry.content
+                              }
+                            </p>
+
+                          </article>
+                        )
+                      )}
 
                     </section>
                   )
