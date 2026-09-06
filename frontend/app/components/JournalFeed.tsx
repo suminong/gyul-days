@@ -20,6 +20,11 @@ type JournalFeedProps = {
   onDeleteEntry: (
     entryId: number
   ) => Promise<boolean>;
+
+  onDeleteImage: (
+    entryId: number,
+    imageId: number
+  ) => Promise<boolean>;
 };
 
 
@@ -55,7 +60,12 @@ function getDateLabel(
   }
 
 
-  if (isSameDay(date, today)) {
+  if (
+    isSameDay(
+      date,
+      today
+    )
+  ) {
     return "today";
   }
 
@@ -86,7 +96,10 @@ function groupEntriesByDate(
   return entries.reduce<
     Record<string, Entry[]>
   >(
-    (groups, entry) => {
+    (
+      groups,
+      entry
+    ) => {
       const label =
         getDateLabel(
           entry.created_at
@@ -113,6 +126,7 @@ export default function JournalFeed({
   currentUserId,
   onEditEntry,
   onDeleteEntry,
+  onDeleteImage,
 }: JournalFeedProps) {
   const [
     editingEntryId,
@@ -138,6 +152,13 @@ export default function JournalFeed({
     null
   );
 
+  const [
+    deletingImageId,
+    setDeletingImageId,
+  ] = useState<number | null>(
+    null
+  );
+
 
   const groupedEntries =
     groupEntriesByDate(entries);
@@ -157,20 +178,26 @@ export default function JournalFeed({
 
 
   function cancelEditing() {
-    setEditingEntryId(null);
+    setEditingEntryId(
+      null
+    );
+
     setEditContent("");
   }
 
 
   async function saveEdit() {
     if (
-      editingEntryId === null ||
+      editingEntryId ===
+        null ||
       !editContent.trim()
     ) {
       return;
     }
 
-    setEditingLoading(true);
+    setEditingLoading(
+      true
+    );
 
     const success =
       await onEditEntry(
@@ -178,7 +205,9 @@ export default function JournalFeed({
         editContent.trim()
       );
 
-    setEditingLoading(false);
+    setEditingLoading(
+      false
+    );
 
     if (success) {
       cancelEditing();
@@ -212,6 +241,34 @@ export default function JournalFeed({
   }
 
 
+  async function deleteImage(
+    entryId: number,
+    imageId: number
+  ) {
+    const confirmed =
+      window.confirm(
+        "Delete this photo?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingImageId(
+      imageId
+    );
+
+    await onDeleteImage(
+      entryId,
+      imageId
+    );
+
+    setDeletingImageId(
+      null
+    );
+  }
+
+
   if (loading) {
     return (
       <p className="text-sm text-text-muted">
@@ -221,7 +278,9 @@ export default function JournalFeed({
   }
 
 
-  if (entries.length === 0) {
+  if (
+    entries.length === 0
+  ) {
     return (
       <div className="py-12 text-center">
 
@@ -389,32 +448,95 @@ export default function JournalFeed({
                       </div>
                     ) : (
                       <>
+
                         <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
                           {
                             entry.content
                           }
                         </p>
 
-                        {entry.images.length > 0 && (
-                            <div className="mt-4 space-y-3">
-                                {entry.images.map((image) => (
-                                <img
-                                    key={image.id}
-                                    src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
-                                    alt={
-                                    image.original_filename ??
-                                    "journal image"
+
+                        {/* Images */}
+                        {entry.images &&
+                          entry.images
+                            .length >
+                            0 && (
+                            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                              {entry.images.map(
+                                (
+                                  image
+                                ) => (
+                                  <div
+                                    key={
+                                      image.id
                                     }
-                                    className="
-                                    max-h-[520px]
-                                    w-full
-                                    rounded-2xl
-                                    object-cover
-                                    "
-                                />
-                                ))}
+                                    className="group relative overflow-hidden rounded-2xl"
+                                  >
+
+                                    <img
+                                      src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
+                                      alt={
+                                        image.original_filename ??
+                                        "journal image"
+                                      }
+                                      className="
+                                        h-full
+                                        max-h-[520px]
+                                        w-full
+                                        object-cover
+                                      "
+                                    />
+
+
+                                    {/* Delete photo button */}
+                                    {isMine && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          deleteImage(
+                                            entry.id,
+                                            image.id
+                                          )
+                                        }
+                                        disabled={
+                                          deletingImageId ===
+                                          image.id
+                                        }
+                                        className="
+                                          absolute
+                                          right-2
+                                          top-2
+                                          flex
+                                          h-7
+                                          w-7
+                                          items-center
+                                          justify-center
+                                          rounded-full
+                                          bg-black/55
+                                          text-sm
+                                          text-white
+                                          opacity-80
+                                          transition
+                                          hover:bg-black/75
+                                          hover:opacity-100
+                                          disabled:opacity-40
+                                        "
+                                        aria-label="Delete image"
+                                      >
+                                        {deletingImageId ===
+                                        image.id
+                                          ? "…"
+                                          : "×"}
+                                      </button>
+                                    )}
+
+                                  </div>
+                                )
+                              )}
+
                             </div>
-                        )}
+                          )}
 
 
                         {isMine && (

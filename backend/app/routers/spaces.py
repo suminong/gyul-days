@@ -558,3 +558,84 @@ async def upload_entry_image(
     db.refresh(image)
 
     return image
+
+@router.delete(
+    "/{space_id}/entries/{entry_id}/images/{image_id}",
+)
+def delete_entry_image(
+    space_id: int,
+    entry_id: int,
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # 1. Space member인지 확인
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+    # 2. Entry가 이 Space에 존재하는지 확인
+    entry = db.scalar(
+        select(models.Entry).where(
+            models.Entry.id == entry_id,
+            models.Entry.space_id == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+    # 3. 작성자만 사진 삭제 가능
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete images from your own entries",
+        )
+
+    # 4. 해당 사진 찾기
+    image = db.scalar(
+        select(models.EntryImage).where(
+            models.EntryImage.id == image_id,
+            models.EntryImage.entry_id == entry_id,
+        )
+    )
+
+    if image is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found",
+        )
+
+    # 5. uploads 폴더의 실제 파일 경로
+    stored_filename = Path(
+        image.file_path
+    ).name
+
+    full_path = (
+        UPLOAD_DIR
+        / stored_filename
+    )
+
+    # 6. 실제 파일 삭제
+    if full_path.exists():
+        full_path.unlink()
+
+    # 7. DB에서도 삭제
+    db.delete(image)
+    db.commit()
+
+    return {
+        "message": "Image deleted"
+    }

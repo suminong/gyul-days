@@ -853,6 +853,104 @@ export default function Home() {
     return true;
   }
 
+  async function deleteImage(
+    entryId: number,
+    imageId: number
+  ): Promise<boolean> {
+    if (
+      selectedSpaceId ===
+      null
+    ) {
+      return false;
+    }
+
+
+    const token =
+      getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return false;
+    }
+
+
+    clearNotices();
+
+
+    const response =
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/images/${imageId}`,
+        {
+          method: "DELETE",
+
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+
+
+    if (
+      response.status ===
+      401
+    ) {
+      handleUnauthorized();
+      return false;
+    }
+
+
+    if (
+      response.status ===
+      403
+    ) {
+      setError(
+        "you can only delete photos from your own entries."
+      );
+
+      return false;
+    }
+
+
+    if (!response.ok) {
+      setError(
+        "couldn't delete this photo."
+      );
+
+      return false;
+    }
+
+
+    // without refresh delete that photo
+    setEntries(
+      (currentEntries) =>
+        currentEntries.map(
+          (entry) => {
+            if (
+              entry.id !==
+              entryId
+            ) {
+              return entry;
+            }
+
+            return {
+              ...entry,
+
+              images:
+                entry.images.filter(
+                  (image) =>
+                    image.id !==
+                    imageId
+                ),
+            };
+          }
+        )
+    );
+
+
+    return true;
+  }
+
   function logout() {
     localStorage.removeItem(
       "access_token"
@@ -983,6 +1081,7 @@ export default function Home() {
           />
         )}
 
+        
         <JournalFeed
           entries={entries}
           loading={loading}
@@ -991,10 +1090,9 @@ export default function Home() {
           }
           onEditEntry={editEntry}
           onDeleteEntry={deleteEntry}
+          onDeleteImage={deleteImage}
         />
-
       </div>
-
     </main>
   );
 }
