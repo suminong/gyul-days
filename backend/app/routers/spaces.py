@@ -8,6 +8,7 @@ from app.security import get_current_user
 from app.schemas import (
     EntryCreate,
     EntryResponse,
+    EntryUpdate,
     SpaceCreate,
     SpaceMemberAdd,
     SpaceResponse,
@@ -251,3 +252,115 @@ def update_space(
     db.refresh(space)
 
     return space
+
+@router.patch(
+    "/{space_id}/entries/{entry_id}",
+    response_model=EntryResponse,
+)
+def update_space_entry(
+    space_id: int,
+    entry_id: int,
+    entry_data: EntryUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # Is this user a member of the space?
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+    # Find the entry inside this space
+    entry = db.scalar(
+        select(models.Entry).where(
+            models.Entry.id == entry_id,
+            models.Entry.space_id == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+    # Only the author can edit it
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own entries",
+        )
+
+    if entry_data.content is not None:
+        new_content = entry_data.content.strip()
+
+        if not new_content:
+            raise HTTPException(
+                status_code=400,
+                detail="Entry cannot be empty",
+            )
+
+        entry.content = new_content
+
+    db.commit()
+    db.refresh(entry)
+
+    return entry
+
+
+@router.delete(
+    "/{space_id}/entries/{entry_id}",
+)
+def delete_space_entry(
+    space_id: int,
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+    entry = db.scalar(
+        select(models.Entry).where(
+            models.Entry.id == entry_id,
+            models.Entry.space_id == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+    # Only the author can delete it
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own entries",
+        )
+
+    db.delete(entry)
+    db.commit()
+
+    return {
+        "message": "Entry deleted"
+    }

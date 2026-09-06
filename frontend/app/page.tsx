@@ -1,98 +1,25 @@
 "use client";
 
 import {
-  ChangeEvent,
-  FormEvent,
-  KeyboardEvent,
   useEffect,
-  useRef,
   useState,
 } from "react";
+
 import { useRouter } from "next/navigation";
 
+import JournalFeed from "./components/JournalFeed";
+import QuickCapture from "./components/QuickCapture";
+import SpaceControls from "./components/SpaceControls";
 
-type Author = {
-  id: number;
-  username: string;
-};
-
-
-type Entry = {
-  id: number;
-  content: string;
-  created_at: string;
-  author: Author;
-};
-
-
-type User = {
-  id: number;
-  username: string;
-  email: string;
-  created_at: string;
-};
-
-
-type Space = {
-  id: number;
-  name: string;
-  created_at: string;
-};
-
-
-function getDateLabel(dateString: string) {
-  const date = new Date(dateString);
-  const today = new Date();
-
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-
-  const isSameDay = (
-    first: Date,
-    second: Date
-  ) =>
-    first.getFullYear() === second.getFullYear() &&
-    first.getMonth() === second.getMonth() &&
-    first.getDate() === second.getDate();
-
-  if (isSameDay(date, today)) {
-    return "today";
-  }
-
-  if (isSameDay(date, yesterday)) {
-    return "yesterday";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-
-function groupEntriesByDate(entries: Entry[]) {
-  return entries.reduce<Record<string, Entry[]>>(
-    (groups, entry) => {
-      const label = getDateLabel(entry.created_at);
-
-      if (!groups[label]) {
-        groups[label] = [];
-      }
-
-      groups[label].push(entry);
-
-      return groups;
-    },
-    {}
-  );
-}
+import {
+  Entry,
+  Space,
+  User,
+} from "./types";
 
 
 export default function Home() {
   const router = useRouter();
-
-  const textareaRef =
-    useRef<HTMLTextAreaElement>(null);
 
   const [entries, setEntries] =
     useState<Entry[]>([]);
@@ -103,12 +30,16 @@ export default function Home() {
   const [
     selectedSpaceId,
     setSelectedSpaceId,
-  ] = useState<number | null>(null);
+  ] = useState<number | null>(
+    null
+  );
 
   const [
     currentUser,
     setCurrentUser,
-  ] = useState<User | null>(null);
+  ] = useState<User | null>(
+    null
+  );
 
   const [content, setContent] =
     useState("");
@@ -124,59 +55,6 @@ export default function Home() {
 
   const [message, setMessage] =
     useState("");
-
-
-  // Rename space
-  const [
-    editingSpace,
-    setEditingSpace,
-  ] = useState(false);
-
-  const [spaceName, setSpaceName] =
-    useState("");
-
-
-  // Create space
-  const [
-    creatingSpace,
-    setCreatingSpace,
-  ] = useState(false);
-
-  const [
-    newSpaceName,
-    setNewSpaceName,
-  ] = useState("");
-
-  const [
-    creatingSpaceLoading,
-    setCreatingSpaceLoading,
-  ] = useState(false);
-
-
-  // Invite member
-  const [
-    invitingMember,
-    setInvitingMember,
-  ] = useState(false);
-
-  const [
-    inviteUsername,
-    setInviteUsername,
-  ] = useState("");
-
-  const [
-    inviteLoading,
-    setInviteLoading,
-  ] = useState(false);
-
-
-  const selectedSpace = spaces.find(
-    (space) =>
-      space.id === selectedSpaceId
-  );
-
-  const groupedEntries =
-    groupEntriesByDate(entries);
 
 
   function getToken() {
@@ -217,22 +95,29 @@ export default function Home() {
       `${process.env.NEXT_PUBLIC_API_URL}/auth/me`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization:
+            `Bearer ${token}`,
         },
       }
     );
 
-    if (response.status === 401) {
+
+    if (
+      response.status === 401
+    ) {
       handleUnauthorized();
       return;
     }
+
 
     if (!response.ok) {
       setError(
         "couldn't load your account."
       );
+
       return;
     }
+
 
     const data =
       await response.json();
@@ -249,19 +134,25 @@ export default function Home() {
       return;
     }
 
+
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/spaces`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization:
+            `Bearer ${token}`,
         },
       }
     );
 
-    if (response.status === 401) {
+
+    if (
+      response.status === 401
+    ) {
       handleUnauthorized();
       return;
     }
+
 
     if (!response.ok) {
       setError(
@@ -269,41 +160,47 @@ export default function Home() {
       );
 
       setLoading(false);
+
       return;
     }
+
 
     const data: Space[] =
       await response.json();
 
     setSpaces(data);
 
-    if (data.length > 0) {
-      const savedSpaceId =
-        localStorage.getItem(
-          "selected_space_id"
-        );
 
-      const savedSpace =
-        data.find(
-          (space) =>
-            space.id ===
-            Number(savedSpaceId)
-        );
+    if (data.length === 0) {
+      setSelectedSpaceId(
+        null
+      );
 
-      if (savedSpace) {
-        setSelectedSpaceId(
-          savedSpace.id
-        );
-      } else {
-        setSelectedSpaceId(
-          data[0].id
-        );
-      }
-    } else {
-      setSelectedSpaceId(null);
-      setEntries([]);
       setLoading(false);
+
+      return;
     }
+
+
+    const savedSpaceId =
+      localStorage.getItem(
+        "selected_space_id"
+      );
+
+
+    const savedSpace =
+      data.find(
+        (space) =>
+          space.id ===
+          Number(savedSpaceId)
+      );
+
+
+    setSelectedSpaceId(
+      savedSpace
+        ? savedSpace.id
+        : data[0].id
+    );
   }
 
 
@@ -317,31 +214,28 @@ export default function Home() {
       return;
     }
 
+
     setLoading(true);
-    setError("");
+
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries`,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization:
+            `Bearer ${token}`,
         },
       }
     );
 
-    if (response.status === 401) {
+
+    if (
+      response.status === 401
+    ) {
       handleUnauthorized();
       return;
     }
 
-    if (response.status === 403) {
-      setError(
-        "you don't have access to this space."
-      );
-
-      setLoading(false);
-      return;
-    }
 
     if (!response.ok) {
       setError(
@@ -349,13 +243,16 @@ export default function Home() {
       );
 
       setLoading(false);
+
       return;
     }
+
 
     const data =
       await response.json();
 
     setEntries(data);
+
     setLoading(false);
   }
 
@@ -367,62 +264,26 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (selectedSpaceId !== null) {
-      localStorage.setItem(
-        "selected_space_id",
-        String(selectedSpaceId)
-      );
-
-      loadEntries(
-        selectedSpaceId
-      );
-
-      setEditingSpace(false);
-      setInvitingMember(false);
-    }
-  }, [selectedSpaceId]);
-
-
-  function resizeTextarea() {
-    const textarea =
-      textareaRef.current;
-
-    if (!textarea) {
+    if (
+      selectedSpaceId === null
+    ) {
       return;
     }
 
-    textarea.style.height =
-      "auto";
 
-    textarea.style.height =
-      `${textarea.scrollHeight}px`;
-  }
-
-
-  function handleContentChange(
-    event: ChangeEvent<HTMLTextAreaElement>
-  ) {
-    setContent(
-      event.target.value
+    localStorage.setItem(
+      "selected_space_id",
+      String(
+        selectedSpaceId
+      )
     );
 
-    requestAnimationFrame(() => {
-      resizeTextarea();
-    });
-  }
 
-
-  function handleSpaceChange(
-    event: ChangeEvent<HTMLSelectElement>
-  ) {
-    clearNotices();
-
-    setEntries([]);
-
-    setSelectedSpaceId(
-      Number(event.target.value)
+    loadEntries(
+      selectedSpaceId
     );
-  }
+
+  }, [selectedSpaceId]);
 
 
   async function saveEntry() {
@@ -434,6 +295,7 @@ export default function Home() {
       return;
     }
 
+
     const token = getToken();
 
     if (!token) {
@@ -441,43 +303,53 @@ export default function Home() {
       return;
     }
 
+
     setSaving(true);
+
     clearNotices();
 
+
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries`,
-        {
-          method: "POST",
+      const response =
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries`,
+          {
+            method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+            headers: {
+              "Content-Type":
+                "application/json",
 
-            Authorization:
-              `Bearer ${token}`,
-          },
+              Authorization:
+                `Bearer ${token}`,
+            },
 
-          body: JSON.stringify({
-            content:
-              content.trim(),
-          }),
-        }
-      );
+            body:
+              JSON.stringify({
+                content:
+                  content.trim(),
+              }),
+          }
+        );
+
 
       if (
-        response.status === 401
+        response.status ===
+        401
       ) {
         handleUnauthorized();
         return;
       }
 
+
       if (!response.ok) {
         throw new Error();
       }
 
+
       const newEntry =
         await response.json();
+
 
       setEntries(
         (currentEntries) => [
@@ -486,145 +358,109 @@ export default function Home() {
         ]
       );
 
+
       setContent("");
 
-      if (
-        textareaRef.current
-      ) {
-        textareaRef.current.style.height =
-          "auto";
-      }
     } catch {
       setError(
         "couldn't save this entry."
       );
+
     } finally {
       setSaving(false);
     }
   }
 
 
-  async function createEntry(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-    await saveEntry();
-  }
-
-
-  function handleKeyDown(
-    event: KeyboardEvent<HTMLTextAreaElement>
-  ) {
-    if (
-      (
-        event.metaKey ||
-        event.ctrlKey
-      ) &&
-      event.key === "Enter"
-    ) {
-      event.preventDefault();
-      saveEntry();
-    }
-  }
-
-
   async function createSpace(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    if (!newSpaceName.trim()) {
-      return;
-    }
-
+    name: string
+  ): Promise<boolean> {
     const token = getToken();
 
     if (!token) {
       handleUnauthorized();
-      return;
+      return false;
     }
 
-    setCreatingSpaceLoading(true);
+
     clearNotices();
 
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/spaces`,
-        {
-          method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces`,
+      {
+        method: "POST",
 
-            Authorization:
-              `Bearer ${token}`,
-          },
+        headers: {
+          "Content-Type":
+            "application/json",
 
-          body: JSON.stringify({
-            name:
-              newSpaceName.trim(),
-          }),
-        }
-      );
+          Authorization:
+            `Bearer ${token}`,
+        },
 
-      if (
-        response.status === 401
-      ) {
-        handleUnauthorized();
-        return;
+        body: JSON.stringify({
+          name,
+        }),
       }
+    );
 
-      if (!response.ok) {
-        throw new Error();
-      }
 
-      const newSpace: Space =
-        await response.json();
-
-      setSpaces(
-        (currentSpaces) => [
-          newSpace,
-          ...currentSpaces,
-        ]
-      );
-
-      setSelectedSpaceId(
-        newSpace.id
-      );
-
-      setNewSpaceName("");
-      setCreatingSpace(false);
-
-      setMessage(
-        `"${newSpace.name}" 만들었어 🍊`
-      );
-    } catch {
+    if (!response.ok) {
       setError(
         "couldn't create the space."
       );
-    } finally {
-      setCreatingSpaceLoading(false);
+
+      return false;
     }
+
+
+    const newSpace: Space =
+      await response.json();
+
+
+    setSpaces(
+      (current) => [
+        newSpace,
+        ...current,
+      ]
+    );
+
+
+    setSelectedSpaceId(
+      newSpace.id
+    );
+
+
+    setMessage(
+      `"${newSpace.name}" 만들었어 🍊`
+    );
+
+
+    return true;
   }
 
 
-  async function renameSpace() {
+  async function renameSpace(
+    name: string
+  ): Promise<boolean> {
     if (
-      selectedSpaceId === null ||
-      !spaceName.trim()
+      selectedSpaceId === null
     ) {
-      return;
+      return false;
     }
+
 
     const token = getToken();
 
     if (!token) {
       handleUnauthorized();
-      return;
+      return false;
     }
 
+
     clearNotices();
+
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}`,
@@ -640,206 +476,314 @@ export default function Home() {
         },
 
         body: JSON.stringify({
-          name:
-            spaceName.trim(),
+          name,
         }),
       }
     );
 
-    if (
-      response.status === 401
-    ) {
-      handleUnauthorized();
-      return;
-    }
+
+    const data =
+      await response.json();
+
 
     if (
       response.status === 403
     ) {
       setError(
-        "only the space owner can rename this space."
+        "only the owner can rename this space."
       );
-      return;
+
+      return false;
     }
+
 
     if (!response.ok) {
       setError(
         "couldn't rename this space."
       );
-      return;
+
+      return false;
     }
 
-    const updatedSpace =
-      await response.json();
 
     setSpaces(
-      (currentSpaces) =>
-        currentSpaces.map(
+      (current) =>
+        current.map(
           (space) =>
             space.id ===
-            updatedSpace.id
-              ? updatedSpace
+            data.id
+              ? data
               : space
         )
     );
 
-    setEditingSpace(false);
 
     setMessage(
       "space name updated."
     );
+
+
+    return true;
   }
 
 
   async function inviteMember(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
+    username: string
+  ): Promise<boolean> {
+    if (
+      selectedSpaceId === null
+    ) {
+      return false;
+    }
+
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return false;
+    }
+
+
+    clearNotices();
+
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/members`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          Authorization:
+            `Bearer ${token}`,
+        },
+
+        body:
+          JSON.stringify({
+            username,
+          }),
+      }
+    );
+
+
+    const data =
+      await response.json();
+
 
     if (
-      selectedSpaceId === null ||
-      !inviteUsername.trim()
+      response.status === 404
     ) {
-      return;
+      setError(
+        "couldn't find that username."
+      );
+
+      return false;
+    }
+
+
+    if (
+      response.status === 409
+    ) {
+      setError(
+        "that person is already in this space."
+      );
+
+      return false;
+    }
+
+
+    if (
+      response.status === 403
+    ) {
+      setError(
+        data.detail ??
+          "only the owner can invite people."
+      );
+
+      return false;
+    }
+
+
+    if (!response.ok) {
+      setError(
+        "couldn't add this person."
+      );
+
+      return false;
+    }
+
+
+    setMessage(
+      `${username} joined this space 🍊`
+    );
+
+
+    return true;
+  }
+
+  
+  async function editEntry(
+    entryId: number,
+    newContent: string
+  ): Promise<boolean> {
+    if (
+      selectedSpaceId === null
+    ) {
+      return false;
     }
 
     const token = getToken();
 
     if (!token) {
       handleUnauthorized();
-      return;
-    }
-
-    setInviteLoading(true);
-    clearNotices();
-
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/members`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            Authorization:
-              `Bearer ${token}`,
-          },
-
-          body: JSON.stringify({
-            username:
-              inviteUsername.trim(),
-          }),
-        }
-      );
-
-      if (
-        response.status === 401
-      ) {
-        handleUnauthorized();
-        return;
-      }
-
-      const data =
-        await response.json();
-
-      if (
-        response.status === 403
-      ) {
-        setError(
-          data.detail ??
-            "only the owner can invite members."
-        );
-        return;
-      }
-
-      if (
-        response.status === 404
-      ) {
-        setError(
-          "couldn't find that username."
-        );
-        return;
-      }
-
-      if (
-        response.status === 409
-      ) {
-        setError(
-          "that person is already in this space."
-        );
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error();
-      }
-
-      setMessage(
-        `${inviteUsername.trim()} joined this space 🍊`
-      );
-
-      setInviteUsername("");
-      setInvitingMember(false);
-
-    } catch {
-      setError(
-        "couldn't add this person."
-      );
-    } finally {
-      setInviteLoading(false);
-    }
-  }
-
-
-  function startEditingSpace() {
-    if (!selectedSpace) {
-      return;
+      return false;
     }
 
     clearNotices();
 
-    setSpaceName(
-      selectedSpace.name
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}`,
+      {
+        method: "PATCH",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          Authorization:
+            `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          content: newContent,
+        }),
+      }
     );
 
-    setEditingSpace(true);
-    setCreatingSpace(false);
-    setInvitingMember(false);
+
+    if (
+      response.status === 401
+    ) {
+      handleUnauthorized();
+      return false;
+    }
+
+
+    if (
+      response.status === 403
+    ) {
+      setError(
+        "you can only edit your own entries."
+      );
+
+      return false;
+    }
+
+
+    if (!response.ok) {
+      setError(
+        "couldn't edit this entry."
+      );
+
+      return false;
+    }
+
+
+    const updatedEntry: Entry =
+      await response.json();
+
+
+    setEntries(
+      (currentEntries) =>
+        currentEntries.map(
+          (entry) =>
+            entry.id ===
+            updatedEntry.id
+              ? updatedEntry
+              : entry
+        )
+    );
+
+
+    return true;
   }
 
 
-  function startCreatingSpace() {
+  async function deleteEntry(
+    entryId: number
+  ): Promise<boolean> {
+    if (
+      selectedSpaceId === null
+    ) {
+      return false;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return false;
+    }
+
     clearNotices();
 
-    setCreatingSpace(true);
-    setEditingSpace(false);
-    setInvitingMember(false);
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}`,
+      {
+        method: "DELETE",
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+        },
+      }
+    );
+
+
+    if (
+      response.status === 401
+    ) {
+      handleUnauthorized();
+      return false;
+    }
+
+
+    if (
+      response.status === 403
+    ) {
+      setError(
+        "you can only delete your own entries."
+      );
+
+      return false;
+    }
+
+
+    if (!response.ok) {
+      setError(
+        "couldn't delete this entry."
+      );
+
+      return false;
+    }
+
+
+    setEntries(
+      (currentEntries) =>
+        currentEntries.filter(
+          (entry) =>
+            entry.id !== entryId
+        )
+    );
+
+
+    return true;
   }
-
-
-  function startInvitingMember() {
-    clearNotices();
-
-    setInvitingMember(true);
-    setEditingSpace(false);
-    setCreatingSpace(false);
-  }
-
-
-  function closeSpaceTools() {
-    setEditingSpace(false);
-    setCreatingSpace(false);
-    setInvitingMember(false);
-
-    setSpaceName("");
-    setNewSpaceName("");
-    setInviteUsername("");
-
-    clearNotices();
-  }
-
 
   function logout() {
     localStorage.removeItem(
@@ -859,7 +803,7 @@ export default function Home() {
 
       <div className="mx-auto max-w-2xl px-5 py-10 sm:px-6 sm:py-14">
 
-        {/* Header */}
+
         <header className="mb-10">
 
           <div className="mb-6 flex items-start justify-between">
@@ -879,13 +823,16 @@ export default function Home() {
 
               {currentUser && (
                 <span className="text-sm text-text-muted">
-                  {currentUser.username}
+                  {
+                    currentUser.username
+                  }
                 </span>
               )}
 
+
               <button
                 onClick={logout}
-                className="text-xs text-text-muted transition hover:text-orange-dark"
+                className="text-xs text-text-muted hover:text-orange-dark"
               >
                 log out
               </button>
@@ -895,364 +842,39 @@ export default function Home() {
           </div>
 
 
-          {/* Space title + controls */}
-          <div className="mb-2 flex items-center justify-between">
+          <SpaceControls
+            spaces={spaces}
 
-            <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-muted">
-              space
-            </p>
+            selectedSpaceId={
+              selectedSpaceId
+            }
 
-            <button
-              type="button"
-              onClick={startCreatingSpace}
-              className="text-xs font-medium text-orange-dark transition hover:text-orange"
-            >
-              + new space
-            </button>
+            onSelectSpace={
+              setSelectedSpaceId
+            }
 
-          </div>
+            onCreateSpace={
+              createSpace
+            }
 
+            onRenameSpace={
+              renameSpace
+            }
 
-          {/* Space selector */}
-          {spaces.length > 0 && !editingSpace && (
-            <div className="flex gap-2">
-
-              <select
-                value={
-                  selectedSpaceId ?? ""
-                }
-                onChange={
-                  handleSpaceChange
-                }
-                className="
-                  min-w-0
-                  flex-1
-                  rounded-2xl
-                  border
-                  border-border
-                  bg-surface
-                  px-4
-                  py-3
-                  text-sm
-                  font-medium
-                  text-orange-dark
-                  outline-none
-                  transition
-                  focus:border-orange
-                "
-              >
-
-                {spaces.map(
-                  (space) => (
-                    <option
-                      key={space.id}
-                      value={space.id}
-                    >
-                      {space.name}
-                    </option>
-                  )
-                )}
-
-              </select>
-
-
-              <button
-                type="button"
-                onClick={
-                  startEditingSpace
-                }
-                className="
-                  rounded-2xl
-                  border
-                  border-border
-                  bg-surface
-                  px-4
-                  text-sm
-                  text-text-muted
-                  transition
-                  hover:border-orange-light
-                  hover:text-orange-dark
-                "
-              >
-                edit
-              </button>
-
-
-              <button
-                type="button"
-                onClick={
-                  startInvitingMember
-                }
-                className="
-                  rounded-2xl
-                  border
-                  border-border
-                  bg-surface
-                  px-4
-                  text-sm
-                  text-text-muted
-                  transition
-                  hover:border-orange-light
-                  hover:text-orange-dark
-                "
-              >
-                invite
-              </button>
-
-            </div>
-          )}
-
-
-          {/* Rename space */}
-          {editingSpace && (
-            <div className="flex gap-2">
-
-              <input
-                value={spaceName}
-                onChange={(event) =>
-                  setSpaceName(
-                    event.target.value
-                  )
-                }
-                autoFocus
-                className="
-                  min-w-0
-                  flex-1
-                  rounded-2xl
-                  border
-                  border-orange
-                  bg-surface
-                  px-4
-                  py-3
-                  text-sm
-                  text-text
-                  outline-none
-                "
-              />
-
-              <button
-                type="button"
-                onClick={renameSpace}
-                className="
-                  rounded-2xl
-                  bg-orange
-                  px-4
-                  text-sm
-                  text-white
-                  hover:bg-orange-dark
-                "
-              >
-                save
-              </button>
-
-              <button
-                type="button"
-                onClick={
-                  closeSpaceTools
-                }
-                className="
-                  rounded-2xl
-                  border
-                  border-border
-                  bg-surface
-                  px-4
-                  text-sm
-                  text-text-muted
-                "
-              >
-                cancel
-              </button>
-
-            </div>
-          )}
-
-
-          {/* Create new space */}
-          {creatingSpace && (
-            <form
-              onSubmit={createSpace}
-              className="mt-3 rounded-3xl border border-border bg-surface p-4"
-            >
-
-              <p className="mb-3 text-sm font-medium text-orange-dark">
-                새 Space 만들기
-              </p>
-
-              <div className="flex gap-2">
-
-                <input
-                  value={
-                    newSpaceName
-                  }
-                  onChange={(event) =>
-                    setNewSpaceName(
-                      event.target.value
-                    )
-                  }
-                  placeholder="space name"
-                  autoFocus
-                  className="
-                    min-w-0
-                    flex-1
-                    rounded-2xl
-                    border
-                    border-border
-                    bg-background
-                    px-4
-                    py-3
-                    text-sm
-                    text-text
-                    outline-none
-                    focus:border-orange
-                  "
-                />
-
-                <button
-                  type="submit"
-                  disabled={
-                    creatingSpaceLoading ||
-                    !newSpaceName.trim()
-                  }
-                  className="
-                    rounded-2xl
-                    bg-orange
-                    px-4
-                    text-sm
-                    text-white
-                    hover:bg-orange-dark
-                    disabled:opacity-40
-                  "
-                >
-                  {creatingSpaceLoading
-                    ? "creating..."
-                    : "create"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={
-                    closeSpaceTools
-                  }
-                  className="
-                    rounded-2xl
-                    border
-                    border-border
-                    px-4
-                    text-sm
-                    text-text-muted
-                  "
-                >
-                  cancel
-                </button>
-
-              </div>
-
-            </form>
-          )}
-
-
-          {/* Invite member */}
-          {invitingMember &&
-            selectedSpaceId !== null && (
-              <form
-                onSubmit={
-                  inviteMember
-                }
-                className="mt-3 rounded-3xl border border-border bg-surface p-4"
-              >
-
-                <p className="text-sm font-medium text-orange-dark">
-                  친구 추가하기
-                </p>
-
-                <p className="mt-1 text-xs text-text-muted">
-                  친구의 Gyul Days username을 입력해.
-                </p>
-
-                <div className="mt-3 flex gap-2">
-
-                  <input
-                    value={
-                      inviteUsername
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setInviteUsername(
-                        event.target
-                          .value
-                      )
-                    }
-                    placeholder="username"
-                    autoFocus
-                    className="
-                      min-w-0
-                      flex-1
-                      rounded-2xl
-                      border
-                      border-border
-                      bg-background
-                      px-4
-                      py-3
-                      text-sm
-                      text-text
-                      outline-none
-                      focus:border-orange
-                    "
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={
-                      inviteLoading ||
-                      !inviteUsername.trim()
-                    }
-                    className="
-                      rounded-2xl
-                      bg-orange
-                      px-4
-                      text-sm
-                      text-white
-                      hover:bg-orange-dark
-                      disabled:opacity-40
-                    "
-                  >
-                    {inviteLoading
-                      ? "adding..."
-                      : "add"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={
-                      closeSpaceTools
-                    }
-                    className="
-                      rounded-2xl
-                      border
-                      border-border
-                      px-4
-                      text-sm
-                      text-text-muted
-                    "
-                  >
-                    cancel
-                  </button>
-
-                </div>
-
-              </form>
-            )}
+            onInviteMember={
+              inviteMember
+            }
+          />
 
         </header>
 
 
-        {/* Success / Error */}
         {message && (
           <p className="mb-6 rounded-2xl bg-orange-light/20 px-4 py-3 text-sm text-orange-dark">
             {message}
           </p>
         )}
+
 
         {error && (
           <p className="mb-6 rounded-2xl bg-orange-light/20 px-4 py-3 text-sm text-orange-dark">
@@ -1261,211 +883,50 @@ export default function Home() {
         )}
 
 
-        {/* No spaces */}
         {!loading &&
-          spaces.length === 0 &&
-          !creatingSpace && (
+          spaces.length === 0 && (
             <div className="mb-12 rounded-3xl border border-border bg-surface p-8 text-center">
 
-              <p className="text-sm font-medium text-orange-dark">
+              <p className="text-sm text-text-muted">
                 아직 Space가 없어.
               </p>
 
               <p className="mt-2 text-xs text-text-muted">
-                위의 + new space를 눌러서 하나 만들어봐.
+                + new space를 눌러봐.
               </p>
 
             </div>
           )}
 
 
-        {/* Quick capture */}
-        {selectedSpaceId !== null && (
-          <form
-            onSubmit={createEntry}
-            className="mb-14"
-          >
+        {selectedSpaceId !==
+          null && (
+          <QuickCapture
+            content={content}
+            saving={saving}
 
-            <div className="rounded-3xl border border-border bg-surface p-1 shadow-sm">
+            onContentChange={
+              setContent
+            }
 
-              <textarea
-                ref={textareaRef}
-                value={content}
-                onChange={
-                  handleContentChange
-                }
-                onKeyDown={
-                  handleKeyDown
-                }
-                placeholder="뭐야?"
-                rows={3}
-                className="
-                  max-h-80
-                  min-h-28
-                  w-full
-                  resize-none
-                  overflow-y-auto
-                  bg-transparent
-                  px-5
-                  pt-5
-                  pb-3
-                  text-base
-                  leading-7
-                  text-text
-                  outline-none
-                  placeholder:text-text-muted
-                "
-              />
-
-              <div className="flex items-center justify-between px-4 pb-3">
-
-                <span className="text-xs text-text-muted">
-                  ⌘ + enter to save
-                </span>
-
-                <button
-                  type="submit"
-                  disabled={
-                    saving ||
-                    !content.trim()
-                  }
-                  className="
-                    rounded-full
-                    bg-orange
-                    px-5
-                    py-2
-                    text-sm
-                    font-medium
-                    text-white
-                    transition
-                    hover:bg-orange-dark
-                    disabled:cursor-not-allowed
-                    disabled:opacity-40
-                  "
-                >
-                  {saving
-                    ? "saving..."
-                    : "save"}
-                </button>
-
-              </div>
-
-            </div>
-
-          </form>
+            onSave={
+              saveEntry
+            }
+          />
         )}
 
-
-        {/* Feed */}
-        <section>
-
-          {loading && (
-            <p className="text-sm text-text-muted">
-              loading your days...
-            </p>
-          )}
-
-
-          {!loading &&
-            selectedSpaceId !== null &&
-            entries.length === 0 && (
-              <div className="py-12 text-center">
-
-                <p className="text-sm text-text-muted">
-                  nothing here yet.
-                </p>
-
-                <p className="mt-1 text-xs text-text-muted">
-                  둘 중 누가 먼저 쓸까?
-                </p>
-
-              </div>
-            )}
-
-
-          {!loading &&
-            entries.length > 0 && (
-              <div className="space-y-12">
-
-                {Object.entries(
-                  groupedEntries
-                ).map(
-                  ([
-                    dateLabel,
-                    dateEntries,
-                  ]) => (
-                    <section
-                      key={
-                        dateLabel
-                      }
-                    >
-
-                      <div className="mb-5 flex items-center gap-3">
-
-                        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-orange">
-                          {dateLabel}
-                        </h2>
-
-                        <div className="h-px flex-1 bg-border" />
-
-                      </div>
-
-
-                      {dateEntries.map(
-                        (entry) => (
-                          <article
-                            key={
-                              entry.id
-                            }
-                            className="border-b border-border py-6 first:pt-0"
-                          >
-
-                            <div className="mb-3 flex items-center justify-between gap-4">
-
-                              <span className="text-sm font-medium text-orange-dark">
-                                {
-                                  entry
-                                    .author
-                                    .username
-                                }
-                              </span>
-
-                              <time className="text-xs text-text-muted">
-                                {new Date(
-                                  entry.created_at
-                                ).toLocaleTimeString(
-                                  undefined,
-                                  {
-                                    hour:
-                                      "numeric",
-                                    minute:
-                                      "2-digit",
-                                  }
-                                )}
-                              </time>
-
-                            </div>
-
-                            <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
-                              {
-                                entry.content
-                              }
-                            </p>
-
-                          </article>
-                        )
-                      )}
-
-                    </section>
-                  )
-                )}
-
-              </div>
-            )}
-
-        </section>
+        <JournalFeed
+          entries={entries}
+          loading={loading}
+          currentUserId={
+            currentUser?.id ?? null
+          }
+          onEditEntry={editEntry}
+          onDeleteEntry={deleteEntry}
+        />
 
       </div>
+
     </main>
   );
 }
