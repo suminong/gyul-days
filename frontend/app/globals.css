@@ -8,12 +8,15 @@
   --orange-dark: #a9532f;
   --orange-light: #f3c7a8;
 
-  --border: #e8d8ca;
+  /* muted sage green */
+  --green: #7f9b83;
+  --green-dark: #526a56;
+  --green-light: #cbd8c7;
 
+  --border: #e8d8ca;
   --text: #3c2f2a;
   --text-muted: #8a7468;
 }
-
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -22,13 +25,13 @@
   --color-orange-dark: var(--orange-dark);
   --color-orange-light: var(--orange-light);
 
-  --color-border: var(--border);
+  --color-green: var(--green);
+  --color-green-dark: var(--green-dark);
+  --color-green-light: var(--green-light);
 
+  --color-border: var(--border);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
-
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 body {

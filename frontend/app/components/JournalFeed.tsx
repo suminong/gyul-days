@@ -733,16 +733,20 @@ export default function JournalFeed({
                               ) => (
                                 <span
 																	key={link.id}
-																	className="
+																	className={`
 																		inline-flex
 																		items-center
 																		rounded-full
-																		bg-orange-light/25
 																		px-3
 																		py-1
 																		text-xs
-																		text-orange-dark
-																	"
+
+																		${
+																			link.source === "ai"
+																				? "bg-green-light/50 text-green-dark"
+																				: "bg-orange-light/30 text-orange-dark"
+																		}
+																	`}
 																>
 																	#{link.tag.name}
 
@@ -751,7 +755,7 @@ export default function JournalFeed({
 																			className="ml-1 text-[10px] opacity-60"
 																			title="Suggested by AI"
 																		>
-																			💫
+																			💡
 																		</span>
 																	)}
 
@@ -823,21 +827,21 @@ export default function JournalFeed({
 															className="
 																rounded-full
 																border
-																border-orange-light
-																bg-orange-light/10
+																border-green-light
+																bg-green-light/30  
 																px-3
 																py-1
-																text-xs
-																text-orange-dark
+																text-xs 
+																text-green-dark
 																transition
-																hover:bg-orange-light/20
-																disabled:opacity-40
+																hover:bg-green-light/90
+																disabled:opacity-20
 															"
 														>
 															{aiLoadingEntryId ===
 															entry.id
 																? "✨ thinking..."
-																: "✨ suggest tags"}
+																: "💡 suggest tags"}
 														</button>
 													)}
 
@@ -850,8 +854,8 @@ export default function JournalFeed({
 
 															<div className="mb-2 flex items-center justify-between">
 
-																<p className="text-xs font-medium text-orange-dark">
-																	✨ suggested
+																<p className="text-xs font-medium text-green-dark">
+																	💡 suggested
 																</p>
 
 																<button
@@ -861,7 +865,7 @@ export default function JournalFeed({
 																			entry.id
 																		)
 																	}
-																	className="text-xs text-orange-dark transition hover:text-orange"
+																	className="text-xs text-green-dark transition hover:text-green"
 																>
 																	add all
 																</button>
