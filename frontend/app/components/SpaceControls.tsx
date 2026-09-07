@@ -185,43 +185,60 @@ export default function SpaceControls({
         mode === "none" && (
           <div className="flex gap-2">
 
-            <select
-              value={
-                selectedSpaceId ??
-                ""
-              }
-              onChange={
-                handleSpaceChange
-              }
-              className="
-                min-w-0
-                flex-1
-                rounded-2xl
-                border
-                border-border
-                bg-surface
-                px-4
-                py-3
-                text-sm
-                font-medium
-                text-orange-dark
-                outline-none
-                focus:border-orange
-              "
-            >
+            <div className="relative min-w-0 flex-1">
+              <select
+                value={
+                  selectedSpaceId ??
+                  ""
+                }
+                onChange={
+                  handleSpaceChange
+                }
+                className="
+                  w-full
+                  appearance-none
+                  rounded-2xl
+                  border
+                  border-border
+                  bg-surface
+                  py-3
+                  pl-4
+                  pr-12
+                  text-sm
+                  font-medium
+                  text-orange-dark
+                  outline-none
+                  focus:border-orange
+                "
+              >
 
-              {spaces.map(
-                (space) => (
-                  <option
-                    key={space.id}
-                    value={space.id}
-                  >
-                    {space.name}
-                  </option>
-                )
-              )}
+                {spaces.map(
+                  (space) => (
+                    <option
+                      key={space.id}
+                      value={space.id}
+                    >
+                      {space.name}
+                    </option>
+                  )
+                )}
 
-            </select>
+              </select>
+
+              <span
+                className="
+                  pointer-events-none
+                  absolute
+                  right-6
+                  top-1/2
+                  -translate-y-1/2
+                  text-xl
+                  text-orange-dark
+                "
+              >
+                ▾
+              </span>
+            </div> 
 
 
             <button

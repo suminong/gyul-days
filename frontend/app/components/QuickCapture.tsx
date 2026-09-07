@@ -165,7 +165,7 @@ export default function QuickCapture({
       className="mb-14"
     >
 
-      <div className="rounded-3xl border border-border bg-surface p-1 shadow-sm">
+      <div className="rounded-3xl border border-border bg-surface p-2 shadow-sm backdrop-blur-sm">
 
         <textarea
           ref={textareaRef}

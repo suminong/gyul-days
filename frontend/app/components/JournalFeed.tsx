@@ -567,7 +567,7 @@ export default function JournalFeed({
 
   return (
     <>
-      <div className="space-y-12">
+      <div className="space-y-10">
 
         {Object.entries(
           groupedEntries
@@ -576,9 +576,11 @@ export default function JournalFeed({
             dateLabel,
             dateEntries,
           ]) => (
-            <section
-              key={dateLabel}
-            >
+             
+						<section
+							key={dateLabel}
+							className="gyul-day-block rounded-[34px]"
+						>
 
               <div className="mb-5 flex items-center gap-3">
 

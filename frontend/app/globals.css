@@ -1,14 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fff9f2;
-  --surface: #fffdf9;
+  --background: #fff1e3;
+  --surface: rgba(255, 252, 247, 0.78);
 
   --orange: #d97745;
   --orange-dark: #a9532f;
   --orange-light: #f3c7a8;
 
-  /* muted sage green */
   --green: #7f9b83;
   --green-dark: #526a56;
   --green-light: #cbd8c7;
@@ -16,6 +15,15 @@
   --border: #e8d8ca;
   --text: #3c2f2a;
   --text-muted: #8a7468;
+
+  /* background accents */
+  --bg-orange-soft: rgba(244, 166, 88, 0.20);
+  --bg-orange-deep: rgba(230, 133, 49, 0.16);
+  --bg-yellow-soft: rgba(255, 220, 120, 0.18);
+
+  /* pixel pattern */
+  --pixel-orange: rgba(226, 142, 61, 0.08);
+  --pixel-yellow: rgba(255, 214, 110, 0.07);
 }
 @theme inline {
   --color-background: var(--background);
@@ -32,10 +40,138 @@
   --color-border: var(--border);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+
+  background-color: var(--background);
+
+  background-image:
+    radial-gradient(
+      circle at 18% 16%,
+      var(--bg-yellow-soft) 0,
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 82% 14%,
+      var(--bg-orange-soft) 0,
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 70% 78%,
+      var(--bg-orange-deep) 0,
+      transparent 26%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 12px,
+      rgba(255, 255, 255, 0.06) 12px 13px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 12px,
+      rgba(255, 255, 255, 0.06) 12px 13px
+    ),
+    linear-gradient(
+      135deg,
+      var(--background) 0%,
+      #fff4e8 35%,
+      #ffe9c8 100%
+    );
+
+  background-attachment: fixed;
+}
+
+.gyul-day-block {
+  position: relative;
+  isolation: isolate;
+
+  padding: 2rem 2.1rem;
+
+  /* 흰 속껍질 */
+  background: rgba(255, 255, 255, 0.82);
+
+  /* 일부러 비대칭 */
+  border-radius:
+    3.2rem 5.8rem 4.1rem 6.4rem /
+    4rem 3rem 5.5rem 3.8rem;
+
+  box-shadow:
+    0 12px 35px rgba(176, 93, 31, 0.08);
+
+  overflow: hidden;
+}
+
+
+/* 안쪽 귤 과육 */
+.gyul-day-block::before {
+  content: "";
+
+  position: absolute;
+  inset: 2px;
+
+  z-index: -1;
+
+  border-radius:
+    2.8rem 5.2rem 3.6rem 5.8rem /
+    3.5rem 2.7rem 5rem 3.4rem;
+
+  background:
+    radial-gradient(
+      ellipse at 18% 12%,
+      rgba(255, 239, 174, 0.48),
+      transparent 23%
+    ),
+    radial-gradient(
+      ellipse at 84% 76%,
+      rgba(244, 145, 59, 0.34),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 58% 45%,
+      rgba(255, 188, 88, 0.20),
+      transparent 55%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 196, 106, 0.34),
+      rgba(255, 221, 148, 0.20)
+    );
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  box-shadow:
+    inset 0 0 28px rgba(255, 164, 62, 0.12),
+    inset 0 1px 4px rgba(255, 255, 255, 0.75);
+}
+
+
+/* 과육의 아주 희미한 결 */
+.gyul-day-block::after {
+  content: "";
+
+  position: absolute;
+  inset: 4px;
+
+  z-index: -1;
+  pointer-events: none;
+
+  border-radius:
+    2.5rem 4.8rem 3.3rem 5.3rem /
+    3.2rem 2.5rem 4.6rem 3rem;
+
+  background:
+    repeating-linear-gradient(
+      112deg,
+      transparent 0 22px,
+      rgba(255, 255, 255, 0.07) 23px 24px
+    );
+
+  opacity: 0.7;
 }

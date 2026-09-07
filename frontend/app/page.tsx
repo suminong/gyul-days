@@ -1350,7 +1350,7 @@ export default function Home() {
 
 
   return (
-    <main className="min-h-screen bg-background text-text">
+    <main className="min-h-screen bg-transparent text-text">
 
       <div className="mx-auto max-w-2xl px-5 py-10 sm:px-6 sm:py-14">
 
