@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Entry } from "../types";
+import { Entry, EntryImage } from "../types";
 
 
 type JournalFeedProps = {
@@ -160,8 +160,45 @@ export default function JournalFeed({
   );
 
 
+  // Lightbox
+  const [
+    lightboxImage,
+    setLightboxImage,
+  ] = useState<EntryImage | null>(
+    null
+  );
+
+
   const groupedEntries =
     groupEntriesByDate(entries);
+
+
+  // ESC key closes photo
+  useEffect(() => {
+    function handleEscape(
+      event: KeyboardEvent
+    ) {
+      if (
+        event.key === "Escape"
+      ) {
+        setLightboxImage(
+          null
+        );
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      handleEscape
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, []);
 
 
   function startEditing(
@@ -247,7 +284,7 @@ export default function JournalFeed({
   ) {
     const confirmed =
       window.confirm(
-        "Delete this photo?"
+        "이 사진을 삭제할까?"
       );
 
     if (!confirmed) {
@@ -258,10 +295,21 @@ export default function JournalFeed({
       imageId
     );
 
-    await onDeleteImage(
-      entryId,
-      imageId
-    );
+    const success =
+      await onDeleteImage(
+        entryId,
+        imageId
+      );
+
+    if (
+      success &&
+      lightboxImage?.id ===
+        imageId
+    ) {
+      setLightboxImage(
+        null
+      );
+    }
 
     setDeletingImageId(
       null
@@ -298,297 +346,390 @@ export default function JournalFeed({
 
 
   return (
-    <div className="space-y-12">
+    <>
+      <div className="space-y-12">
 
-      {Object.entries(
-        groupedEntries
-      ).map(
-        ([
-          dateLabel,
-          dateEntries,
-        ]) => (
-          <section
-            key={dateLabel}
-          >
+        {Object.entries(
+          groupedEntries
+        ).map(
+          ([
+            dateLabel,
+            dateEntries,
+          ]) => (
+            <section
+              key={dateLabel}
+            >
 
-            <div className="mb-5 flex items-center gap-3">
+              <div className="mb-5 flex items-center gap-3">
 
-              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-orange">
-                {dateLabel}
-              </h2>
+                <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-orange">
+                  {dateLabel}
+                </h2>
 
-              <div className="h-px flex-1 bg-border" />
+                <div className="h-px flex-1 bg-border" />
 
-            </div>
-
-
-            {dateEntries.map(
-              (entry) => {
-                const isMine =
-                  entry.author.id ===
-                  currentUserId;
-
-                const isEditing =
-                  editingEntryId ===
-                  entry.id;
+              </div>
 
 
-                return (
-                  <article
-                    key={entry.id}
-                    className="border-b border-border py-6 first:pt-0"
-                  >
+              {dateEntries.map(
+                (entry) => {
+                  const isMine =
+                    entry.author.id ===
+                    currentUserId;
 
-                    <div className="mb-3 flex items-center justify-between gap-4">
+                  const isEditing =
+                    editingEntryId ===
+                    entry.id;
 
-                      <span className="text-sm font-medium text-orange-dark">
-                        {
-                          entry
-                            .author
-                            .username
-                        }
-                      </span>
 
-                      <time className="text-xs text-text-muted">
-                        {new Date(
-                          entry.created_at
-                        ).toLocaleTimeString(
-                          undefined,
+                  return (
+                    <article
+                      key={entry.id}
+                      className="border-b border-border py-6 first:pt-0"
+                    >
+
+                      <div className="mb-3 flex items-center justify-between gap-4">
+
+                        <span className="text-sm font-medium text-orange-dark">
                           {
-                            hour:
-                              "numeric",
-
-                            minute:
-                              "2-digit",
+                            entry
+                              .author
+                              .username
                           }
-                        )}
-                      </time>
+                        </span>
 
-                    </div>
+                        <time className="text-xs text-text-muted">
+                          {new Date(
+                            entry.created_at
+                          ).toLocaleTimeString(
+                            undefined,
+                            {
+                              hour:
+                                "numeric",
 
-
-                    {isEditing ? (
-                      <div>
-
-                        <textarea
-                          value={
-                            editContent
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            setEditContent(
-                              event
-                                .target
-                                .value
-                            )
-                          }
-                          autoFocus
-                          rows={3}
-                          className="
-                            w-full
-                            resize-none
-                            rounded-2xl
-                            border
-                            border-orange-light
-                            bg-surface
-                            px-4
-                            py-3
-                            text-[15px]
-                            leading-7
-                            text-text
-                            outline-none
-                            focus:border-orange
-                          "
-                        />
-
-
-                        <div className="mt-3 flex justify-end gap-3">
-
-                          <button
-                            type="button"
-                            onClick={
-                              cancelEditing
+                              minute:
+                                "2-digit",
                             }
-                            className="text-xs text-text-muted transition hover:text-orange-dark"
-                          >
-                            cancel
-                          </button>
-
-
-                          <button
-                            type="button"
-                            onClick={
-                              saveEdit
-                            }
-                            disabled={
-                              editingLoading ||
-                              !editContent.trim()
-                            }
-                            className="
-                              rounded-full
-                              bg-orange
-                              px-4
-                              py-2
-                              text-xs
-                              font-medium
-                              text-white
-                              transition
-                              hover:bg-orange-dark
-                              disabled:opacity-40
-                            "
-                          >
-                            {editingLoading
-                              ? "saving..."
-                              : "save"}
-                          </button>
-
-                        </div>
+                          )}
+                        </time>
 
                       </div>
-                    ) : (
-                      <>
-
-                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
-                          {
-                            entry.content
-                          }
-                        </p>
 
 
-                        {/* Images */}
-                        {entry.images &&
-                          entry.images
-                            .length >
-                            0 && (
-                            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {isEditing ? (
+                        <div>
 
-                              {entry.images.map(
-                                (
-                                  image
-                                ) => (
-                                  <div
-                                    key={
-                                      image.id
-                                    }
-                                    className="group relative overflow-hidden rounded-2xl"
-                                  >
-
-                                    <img
-                                      src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
-                                      alt={
-                                        image.original_filename ??
-                                        "journal image"
-                                      }
-                                      className="
-                                        h-full
-                                        max-h-[520px]
-                                        w-full
-                                        object-cover
-                                      "
-                                    />
-
-
-                                    {/* Delete photo button */}
-                                    {isMine && (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          deleteImage(
-                                            entry.id,
-                                            image.id
-                                          )
-                                        }
-                                        disabled={
-                                          deletingImageId ===
-                                          image.id
-                                        }
-                                        className="
-                                          absolute
-                                          right-2
-                                          top-2
-                                          flex
-                                          h-7
-                                          w-7
-                                          items-center
-                                          justify-center
-                                          rounded-full
-                                          bg-black/55
-                                          text-sm
-                                          text-white
-                                          opacity-80
-                                          transition
-                                          hover:bg-black/75
-                                          hover:opacity-100
-                                          disabled:opacity-40
-                                        "
-                                        aria-label="Delete image"
-                                      >
-                                        {deletingImageId ===
-                                        image.id
-                                          ? "…"
-                                          : "×"}
-                                      </button>
-                                    )}
-
-                                  </div>
-                                )
-                              )}
-
-                            </div>
-                          )}
+                          <textarea
+                            value={
+                              editContent
+                            }
+                            onChange={(
+                              event
+                            ) =>
+                              setEditContent(
+                                event
+                                  .target
+                                  .value
+                              )
+                            }
+                            autoFocus
+                            rows={3}
+                            className="
+                              w-full
+                              resize-none
+                              rounded-2xl
+                              border
+                              border-orange-light
+                              bg-surface
+                              px-4
+                              py-3
+                              text-[15px]
+                              leading-7
+                              text-text
+                              outline-none
+                              focus:border-orange
+                            "
+                          />
 
 
-                        {isMine && (
                           <div className="mt-3 flex justify-end gap-3">
 
                             <button
                               type="button"
-                              onClick={() =>
-                                startEditing(
-                                  entry
-                                )
+                              onClick={
+                                cancelEditing
                               }
                               className="text-xs text-text-muted transition hover:text-orange-dark"
                             >
-                              edit
+                              cancel
                             </button>
 
 
                             <button
                               type="button"
-                              onClick={() =>
-                                deleteEntry(
-                                  entry.id
-                                )
+                              onClick={
+                                saveEdit
                               }
                               disabled={
-                                deletingEntryId ===
-                                entry.id
+                                editingLoading ||
+                                !editContent.trim()
                               }
-                              className="text-xs text-text-muted transition hover:text-orange-dark disabled:opacity-40"
+                              className="
+                                rounded-full
+                                bg-orange
+                                px-4
+                                py-2
+                                text-xs
+                                font-medium
+                                text-white
+                                transition
+                                hover:bg-orange-dark
+                                disabled:opacity-40
+                              "
                             >
-                              {deletingEntryId ===
-                              entry.id
-                                ? "deleting..."
-                                : "delete"}
+                              {editingLoading
+                                ? "saving..."
+                                : "save"}
                             </button>
 
                           </div>
-                        )}
 
-                      </>
-                    )}
+                        </div>
+                      ) : (
+                        <>
 
-                  </article>
-                );
-              }
-            )}
+                          <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
+                            {
+                              entry.content
+                            }
+                          </p>
 
-          </section>
-        )
+
+                          {/* Images */}
+                          {entry.images &&
+                            entry.images
+                              .length >
+                              0 && (
+                              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                                {entry.images.map(
+                                  (
+                                    image
+                                  ) => (
+                                    <div
+                                      key={
+                                        image.id
+                                      }
+                                      className="
+                                        group
+                                        relative
+                                        overflow-hidden
+                                        rounded-2xl
+                                        bg-surface
+                                      "
+                                    >
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setLightboxImage(
+                                            image
+                                          )
+                                        }
+                                        className="block w-full cursor-zoom-in"
+                                      >
+                                        <img
+                                          src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
+                                          alt={
+                                            image.original_filename ??
+                                            "journal image"
+                                          }
+                                          className="
+                                            h-72
+                                            w-full
+                                            object-cover
+                                            transition
+                                            duration-200
+                                            group-hover:scale-[1.01]
+                                          "
+                                        />
+                                      </button>
+
+
+                                      {isMine && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            deleteImage(
+                                              entry.id,
+                                              image.id
+                                            )
+                                          }
+                                          disabled={
+                                            deletingImageId ===
+                                            image.id
+                                          }
+                                          className="
+                                            absolute
+                                            right-2
+                                            top-2
+                                            z-10
+                                            flex
+                                            h-7
+                                            w-7
+                                            items-center
+                                            justify-center
+                                            rounded-full
+                                            bg-black/55
+                                            text-sm
+                                            text-white
+                                            transition
+                                            hover:bg-black/75
+                                            disabled:opacity-40
+                                          "
+                                          aria-label="Delete image"
+                                        >
+                                          {deletingImageId ===
+                                          image.id
+                                            ? "…"
+                                            : "×"}
+                                        </button>
+                                      )}
+
+                                    </div>
+                                  )
+                                )}
+
+                              </div>
+                            )}
+
+
+                          {isMine && (
+                            <div className="mt-3 flex justify-end gap-3">
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  startEditing(
+                                    entry
+                                  )
+                                }
+                                className="text-xs text-text-muted transition hover:text-orange-dark"
+                              >
+                                edit
+                              </button>
+
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deleteEntry(
+                                    entry.id
+                                  )
+                                }
+                                disabled={
+                                  deletingEntryId ===
+                                  entry.id
+                                }
+                                className="text-xs text-text-muted transition hover:text-orange-dark disabled:opacity-40"
+                              >
+                                {deletingEntryId ===
+                                entry.id
+                                  ? "deleting..."
+                                  : "delete"}
+                              </button>
+
+                            </div>
+                          )}
+
+                        </>
+                      )}
+
+                    </article>
+                  );
+                }
+              )}
+
+            </section>
+          )
+        )}
+
+      </div>
+
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-50
+            flex
+            items-center
+            justify-center
+            bg-black/80
+            p-4
+            sm:p-8
+          "
+          onClick={() =>
+            setLightboxImage(
+              null
+            )
+          }
+        >
+
+          <button
+            type="button"
+            onClick={() =>
+              setLightboxImage(
+                null
+              )
+            }
+            className="
+              absolute
+              right-5
+              top-5
+              flex
+              h-10
+              w-10
+              items-center
+              justify-center
+              rounded-full
+              bg-white/15
+              text-2xl
+              text-white
+              transition
+              hover:bg-white/25
+            "
+            aria-label="Close image"
+          >
+            ×
+          </button>
+
+
+          <img
+            src={`${process.env.NEXT_PUBLIC_API_URL}${lightboxImage.file_path}`}
+            alt={
+              lightboxImage.original_filename ??
+              "journal image"
+            }
+            onClick={(
+              event
+            ) =>
+              event.stopPropagation()
+            }
+            className="
+              max-h-[90vh]
+              max-w-[95vw]
+              rounded-2xl
+              object-contain
+              shadow-2xl
+            "
+          />
+
+        </div>
       )}
 
-    </div>
+    </>
   );
 }

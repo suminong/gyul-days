@@ -353,7 +353,6 @@ def update_space_entry(
 
     return entry
 
-
 @router.delete(
     "/{space_id}/entries/{entry_id}",
 )
@@ -363,6 +362,7 @@ def delete_space_entry(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    # 1. Space member인지 확인
     membership = db.scalar(
         select(models.SpaceMember).where(
             models.SpaceMember.space_id == space_id,
@@ -376,8 +376,14 @@ def delete_space_entry(
             detail="You are not a member of this space",
         )
 
+
+    # 2. Entry 찾기
     entry = db.scalar(
-        select(models.Entry).where(
+        select(models.Entry)
+        .options(
+            selectinload(models.Entry.images)
+        )
+        .where(
             models.Entry.id == entry_id,
             models.Entry.space_id == space_id,
         )
@@ -389,15 +395,39 @@ def delete_space_entry(
             detail="Entry not found",
         )
 
-    # Only the author can delete it
+
+    # 3. 작성자만 삭제 가능
     if entry.author_id != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="You can only delete your own entries",
         )
 
+
+    # 4. 삭제 전에 이미지 파일 경로 저장
+    image_paths = []
+
+    for image in entry.images:
+        stored_filename = Path(
+            image.file_path
+        ).name
+
+        image_paths.append(
+            UPLOAD_DIR / stored_filename
+        )
+
+
+    # 5. DB에서 Entry 삭제
+    # EntryImage row는 relationship/cascade 때문에 같이 삭제됨
     db.delete(entry)
     db.commit()
+
+
+    # 6. DB 삭제 성공 후 실제 이미지 파일 삭제
+    for image_path in image_paths:
+        if image_path.exists():
+            image_path.unlink()
+
 
     return {
         "message": "Entry deleted"
