@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import { Entry, EntryImage } from "../types";
+import {
+  Entry,
+  EntryImage,
+} from "../types";
 
 
 type JournalFeedProps = {
@@ -25,6 +31,25 @@ type JournalFeedProps = {
     entryId: number,
     imageId: number
   ) => Promise<boolean>;
+
+  onAddTag: (
+    entryId: number,
+    name: string
+  ) => Promise<boolean>;
+
+  onRemoveTag: (
+    entryId: number,
+    tagId: number
+  ) => Promise<boolean>;
+
+	onSuggestTags: (
+		entryId: number
+	) => Promise<string[] | null>;
+
+	onAddAiTag: (
+		entryId: number,
+		name: string
+	) => Promise<boolean>;
 };
 
 
@@ -127,7 +152,12 @@ export default function JournalFeed({
   onEditEntry,
   onDeleteEntry,
   onDeleteImage,
+  onAddTag,
+	onAddAiTag,
+  onRemoveTag,
+	onSuggestTags,
 }: JournalFeedProps) {
+
   const [
     editingEntryId,
     setEditingEntryId,
@@ -160,7 +190,26 @@ export default function JournalFeed({
   );
 
 
-  // Lightbox
+  // TAG STATES
+  const [
+    taggingEntryId,
+    setTaggingEntryId,
+  ] = useState<number | null>(
+    null
+  );
+
+  const [
+    tagName,
+    setTagName,
+  ] = useState("");
+
+  const [
+    tagLoading,
+    setTagLoading,
+  ] = useState(false);
+
+
+  // LIGHTBOX
   const [
     lightboxImage,
     setLightboxImage,
@@ -168,12 +217,26 @@ export default function JournalFeed({
     null
   );
 
+	const [
+		aiLoadingEntryId,
+		setAiLoadingEntryId,
+	] = useState<number | null>(
+		null
+	);
+
+
+	const [
+		suggestionsByEntry,
+		setSuggestionsByEntry,
+	] = useState<
+		Record<number, string[]>
+	>({});
+
 
   const groupedEntries =
     groupEntriesByDate(entries);
 
 
-  // ESC key closes photo
   useEffect(() => {
     function handleEscape(
       event: KeyboardEvent
@@ -181,16 +244,22 @@ export default function JournalFeed({
       if (
         event.key === "Escape"
       ) {
-        setLightboxImage(
+        setLightboxImage(null);
+
+        setTaggingEntryId(
           null
         );
+
+        setTagName("");
       }
     }
+
 
     window.addEventListener(
       "keydown",
       handleEscape
     );
+
 
     return () => {
       window.removeEventListener(
@@ -215,26 +284,20 @@ export default function JournalFeed({
 
 
   function cancelEditing() {
-    setEditingEntryId(
-      null
-    );
-
+    setEditingEntryId(null);
     setEditContent("");
   }
 
 
   async function saveEdit() {
     if (
-      editingEntryId ===
-        null ||
+      editingEntryId === null ||
       !editContent.trim()
     ) {
       return;
     }
 
-    setEditingLoading(
-      true
-    );
+    setEditingLoading(true);
 
     const success =
       await onEditEntry(
@@ -242,9 +305,7 @@ export default function JournalFeed({
         editContent.trim()
       );
 
-    setEditingLoading(
-      false
-    );
+    setEditingLoading(false);
 
     if (success) {
       cancelEditing();
@@ -306,13 +367,172 @@ export default function JournalFeed({
       lightboxImage?.id ===
         imageId
     ) {
-      setLightboxImage(
-        null
-      );
+      setLightboxImage(null);
     }
 
     setDeletingImageId(
       null
+    );
+  }
+
+
+  async function saveTag(
+    entryId: number
+  ) {
+    if (!tagName.trim()) {
+      return;
+    }
+
+    setTagLoading(true);
+
+    const success =
+      await onAddTag(
+        entryId,
+        tagName.trim()
+      );
+
+    setTagLoading(false);
+
+    if (success) {
+      setTagName("");
+
+      setTaggingEntryId(
+        null
+      );
+    }
+  }
+
+	async function generateSuggestions(
+		entry: Entry
+	) {
+		setAiLoadingEntryId(
+			entry.id
+		);
+
+		const suggestions =
+			await onSuggestTags(
+				entry.id
+			);
+
+		setAiLoadingEntryId(
+			null
+		);
+
+		if (!suggestions) {
+			return;
+		}
+
+
+		// exclude existing tags
+		const existingTags =
+			new Set(
+				entry.tag_links.map(
+					(link) =>
+						link.tag.name
+				)
+			);
+
+
+		const newSuggestions =
+			suggestions.filter(
+				(tag) =>
+					!existingTags.has(tag)
+			);
+
+
+		setSuggestionsByEntry(
+			(current) => ({
+				...current,
+
+				[entry.id]:
+					newSuggestions,
+			})
+		);
+	}
+
+	async function acceptSuggestion(
+		entryId: number,
+		tag: string
+	) {
+		const success =
+			await onAddAiTag(
+				entryId,
+				tag
+			);
+
+		if (!success) {
+			return;
+		}
+
+
+		setSuggestionsByEntry(
+			(current) => ({
+				...current,
+
+				[entryId]:
+					(
+						current[
+							entryId
+						] ?? []
+					).filter(
+						(suggestion) =>
+							suggestion !== tag
+					),
+			})
+		);
+	}
+
+	async function acceptAllSuggestions(
+		entryId: number
+	) {
+		const suggestions =
+			suggestionsByEntry[
+				entryId
+			] ?? [];
+
+
+		for (
+			const tag of suggestions
+		) {
+			const success =
+				await onAddAiTag(
+					entryId,
+					tag
+				);
+
+			if (!success) {
+				continue;
+			}
+
+
+			setSuggestionsByEntry(
+				(current) => ({
+					...current,
+
+					[entryId]:
+						(
+							current[
+								entryId
+							] ?? []
+						).filter(
+							(
+								suggestion
+							) =>
+								suggestion !==
+								tag
+						),
+				})
+			);
+		}
+	}
+
+  async function removeTag(
+    entryId: number,
+    tagId: number
+  ) {
+    await onRemoveTag(
+      entryId,
+      tagId
     );
   }
 
@@ -373,6 +593,7 @@ export default function JournalFeed({
 
               {dateEntries.map(
                 (entry) => {
+
                   const isMine =
                     entry.author.id ===
                     currentUserId;
@@ -388,6 +609,7 @@ export default function JournalFeed({
                       className="border-b border-border py-6 first:pt-0"
                     >
 
+                      {/* AUTHOR */}
                       <div className="mb-3 flex items-center justify-between gap-4">
 
                         <span className="text-sm font-medium text-orange-dark">
@@ -459,11 +681,10 @@ export default function JournalFeed({
                               onClick={
                                 cancelEditing
                               }
-                              className="text-xs text-text-muted transition hover:text-orange-dark"
+                              className="text-xs text-text-muted hover:text-orange-dark"
                             >
                               cancel
                             </button>
-
 
                             <button
                               type="button"
@@ -480,10 +701,7 @@ export default function JournalFeed({
                                 px-4
                                 py-2
                                 text-xs
-                                font-medium
                                 text-white
-                                transition
-                                hover:bg-orange-dark
                                 disabled:opacity-40
                               "
                             >
@@ -498,6 +716,7 @@ export default function JournalFeed({
                       ) : (
                         <>
 
+                          {/* CONTENT */}
                           <p className="whitespace-pre-wrap text-[15px] leading-7 text-text">
                             {
                               entry.content
@@ -505,10 +724,308 @@ export default function JournalFeed({
                           </p>
 
 
-                          {/* Images */}
+                          {/* TAGS */}
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+
+                            {entry.tag_links?.map(
+                              (
+                                link
+                              ) => (
+                                <span
+																	key={link.id}
+																	className="
+																		inline-flex
+																		items-center
+																		rounded-full
+																		bg-orange-light/25
+																		px-3
+																		py-1
+																		text-xs
+																		text-orange-dark
+																	"
+																>
+																	#{link.tag.name}
+
+																	{link.source === "ai" && (
+																		<span
+																			className="ml-1 text-[10px] opacity-60"
+																			title="Suggested by AI"
+																		>
+																			💫
+																		</span>
+																	)}
+
+																	{isMine && (
+																		<button
+																			type="button"
+																			onClick={() =>
+																				removeTag(
+																					entry.id,
+																					link.tag.id
+																				)
+																			}
+																			className="ml-2 text-text-muted hover:text-orange-dark"
+																			aria-label="Remove tag"
+																		>
+																			×
+																		</button>
+																	)}
+																</span> 
+                              )
+                            )}
+
+
+                            {/* THIS SHOULD ALWAYS SHOW ON YOUR OWN ENTRY */}
+                            {isMine &&
+                              taggingEntryId !==
+                                entry.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTaggingEntryId(
+                                      entry.id
+                                    );
+
+                                    setTagName(
+                                      ""
+                                    );
+                                  }}
+                                  className="
+                                    rounded-full
+                                    border
+                                    border-border
+                                    px-3
+                                    py-1
+                                    text-xs
+                                    text-text-muted
+                                    transition
+                                    hover:border-orange-light
+                                    hover:text-orange-dark
+                                  "
+                                >
+                                  + tag
+                                </button>
+                              )}
+
+                          </div>
+													{isMine && (
+														<button
+															type="button"
+															onClick={() =>
+																generateSuggestions(
+																	entry
+																)
+															}
+															disabled={
+																aiLoadingEntryId ===
+																entry.id
+															}
+															className="
+																rounded-full
+																border
+																border-orange-light
+																bg-orange-light/10
+																px-3
+																py-1
+																text-xs
+																text-orange-dark
+																transition
+																hover:bg-orange-light/20
+																disabled:opacity-40
+															"
+														>
+															{aiLoadingEntryId ===
+															entry.id
+																? "✨ thinking..."
+																: "✨ suggest tags"}
+														</button>
+													)}
+
+													{(
+														suggestionsByEntry[
+															entry.id
+														] ?? []
+													).length > 0 && (
+														<div className="mt-3 rounded-2xl border border-orange-light/60 bg-orange-light/10 p-3">
+
+															<div className="mb-2 flex items-center justify-between">
+
+																<p className="text-xs font-medium text-orange-dark">
+																	✨ suggested
+																</p>
+
+																<button
+																	type="button"
+																	onClick={() =>
+																		acceptAllSuggestions(
+																			entry.id
+																		)
+																	}
+																	className="text-xs text-orange-dark transition hover:text-orange"
+																>
+																	add all
+																</button>
+
+															</div>
+
+
+															<div className="flex flex-wrap gap-2">
+
+																{(
+																	suggestionsByEntry[
+																		entry.id
+																	] ?? []
+																).map(
+																	(tag) => (
+																		<button
+																			key={tag}
+																			type="button"
+																			onClick={() =>
+																				acceptSuggestion(
+																					entry.id,
+																					tag
+																				)
+																			}
+																			className="
+																				rounded-full
+																				border
+																				border-orange-light
+																				bg-surface
+																				px-3
+																				py-1.5
+																				text-xs
+																				text-orange-dark
+																				transition
+																				hover:bg-orange-light/20
+																			"
+																		>
+																			+ #{tag}
+																		</button>
+																	)
+																)}
+
+															</div>
+
+														</div>
+													)}
+
+
+                          {/* TAG INPUT */}
+                          {isMine &&
+                            taggingEntryId ===
+                              entry.id && (
+                              <div className="mt-3 flex max-w-sm gap-2">
+
+                                <input
+                                  value={
+                                    tagName
+                                  }
+                                  onChange={(
+                                    event
+                                  ) =>
+                                    setTagName(
+                                      event
+                                        .target
+                                        .value
+                                    )
+                                  }
+                                  onKeyDown={(
+                                    event
+                                  ) => {
+
+                                    if (
+                                      event.key ===
+                                      "Enter"
+                                    ) {
+                                      event.preventDefault();
+
+                                      saveTag(
+                                        entry.id
+                                      );
+                                    }
+
+                                    if (
+                                      event.key ===
+                                      "Escape"
+                                    ) {
+                                      setTaggingEntryId(
+                                        null
+                                      );
+
+                                      setTagName(
+                                        ""
+                                      );
+                                    }
+                                  }}
+                                  placeholder="food"
+                                  autoFocus
+                                  className="
+                                    min-w-0
+                                    flex-1
+                                    rounded-full
+                                    border
+                                    border-border
+                                    bg-surface
+                                    px-3
+                                    py-2
+                                    text-xs
+                                    text-text
+                                    outline-none
+                                    focus:border-orange
+                                  "
+                                />
+
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    saveTag(
+                                      entry.id
+                                    )
+                                  }
+                                  disabled={
+                                    tagLoading ||
+                                    !tagName.trim()
+                                  }
+                                  className="
+                                    rounded-full
+                                    bg-orange
+                                    px-4
+                                    py-2
+                                    text-xs
+                                    text-white
+                                    disabled:opacity-40
+                                  "
+                                >
+                                  {tagLoading
+                                    ? "..."
+                                    : "add"}
+                                </button>
+
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTaggingEntryId(
+                                      null
+                                    );
+
+                                    setTagName(
+                                      ""
+                                    );
+                                  }}
+                                  className="text-xs text-text-muted"
+                                >
+                                  cancel
+                                </button>
+
+                              </div>
+                            )}
+
+
+                          {/* IMAGES */}
                           {entry.images &&
-                            entry.images
-                              .length >
+                            entry.images.length >
                               0 && (
                               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
@@ -520,13 +1037,7 @@ export default function JournalFeed({
                                       key={
                                         image.id
                                       }
-                                      className="
-                                        group
-                                        relative
-                                        overflow-hidden
-                                        rounded-2xl
-                                        bg-surface
-                                      "
+                                      className="group relative overflow-hidden rounded-2xl"
                                     >
 
                                       <button
@@ -538,6 +1049,7 @@ export default function JournalFeed({
                                         }
                                         className="block w-full cursor-zoom-in"
                                       >
+
                                         <img
                                           src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
                                           alt={
@@ -548,11 +1060,9 @@ export default function JournalFeed({
                                             h-72
                                             w-full
                                             object-cover
-                                            transition
-                                            duration-200
-                                            group-hover:scale-[1.01]
                                           "
                                         />
+
                                       </button>
 
 
@@ -573,7 +1083,6 @@ export default function JournalFeed({
                                             absolute
                                             right-2
                                             top-2
-                                            z-10
                                             flex
                                             h-7
                                             w-7
@@ -581,13 +1090,8 @@ export default function JournalFeed({
                                             justify-center
                                             rounded-full
                                             bg-black/55
-                                            text-sm
                                             text-white
-                                            transition
-                                            hover:bg-black/75
-                                            disabled:opacity-40
                                           "
-                                          aria-label="Delete image"
                                         >
                                           {deletingImageId ===
                                           image.id
@@ -604,6 +1108,7 @@ export default function JournalFeed({
                             )}
 
 
+                          {/* ENTRY CONTROLS */}
                           {isMine && (
                             <div className="mt-3 flex justify-end gap-3">
 
@@ -614,11 +1119,10 @@ export default function JournalFeed({
                                     entry
                                   )
                                 }
-                                className="text-xs text-text-muted transition hover:text-orange-dark"
+                                className="text-xs text-text-muted hover:text-orange-dark"
                               >
                                 edit
                               </button>
-
 
                               <button
                                 type="button"
@@ -631,7 +1135,7 @@ export default function JournalFeed({
                                   deletingEntryId ===
                                   entry.id
                                 }
-                                className="text-xs text-text-muted transition hover:text-orange-dark disabled:opacity-40"
+                                className="text-xs text-text-muted hover:text-orange-dark"
                               >
                                 {deletingEntryId ===
                                 entry.id
@@ -657,7 +1161,7 @@ export default function JournalFeed({
       </div>
 
 
-      {/* Lightbox */}
+      {/* LIGHTBOX */}
       {lightboxImage && (
         <div
           className="
@@ -669,39 +1173,28 @@ export default function JournalFeed({
             justify-center
             bg-black/80
             p-4
-            sm:p-8
           "
           onClick={() =>
-            setLightboxImage(
-              null
-            )
+            setLightboxImage(null)
           }
         >
 
           <button
             type="button"
             onClick={() =>
-              setLightboxImage(
-                null
-              )
+              setLightboxImage(null)
             }
             className="
               absolute
               right-5
               top-5
-              flex
               h-10
               w-10
-              items-center
-              justify-center
               rounded-full
               bg-white/15
               text-2xl
               text-white
-              transition
-              hover:bg-white/25
             "
-            aria-label="Close image"
           >
             ×
           </button>
@@ -723,7 +1216,6 @@ export default function JournalFeed({
               max-w-[95vw]
               rounded-2xl
               object-contain
-              shadow-2xl
             "
           />
 

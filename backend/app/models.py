@@ -1,6 +1,12 @@
 from datetime import datetime
-
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
@@ -71,6 +77,11 @@ class Space(Base):
         back_populates="space",
     )
 
+    tags: Mapped[list["Tag"]] = relationship(
+        back_populates="space",
+        cascade="all, delete-orphan",
+    )
+
 
 class SpaceMember(Base):
     __tablename__ = "space_members"
@@ -139,6 +150,11 @@ class Entry(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    tag_links: Mapped[list["EntryTag"]] = relationship(
+        back_populates="entry",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
  
 class EntryImage(Base):
@@ -179,4 +195,99 @@ class EntryImage(Base):
 
     entry: Mapped["Entry"] = relationship(
         back_populates="images",
+    )
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "space_id",
+            "name",
+            name="uq_tag_space_name",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    space_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "spaces.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    space: Mapped["Space"] = relationship(
+        back_populates="tags",
+    )
+
+    entry_links: Mapped[list["EntryTag"]] = relationship(
+        back_populates="tag",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class EntryTag(Base):
+    __tablename__ = "entry_tags"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "entry_id",
+            "tag_id",
+            name="uq_entry_tag",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    entry_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "entries.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    tag_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "tags.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    source: Mapped[str] = mapped_column(
+        String(20),
+        default="manual",
+        nullable=False,
+    )
+
+    confidence: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    entry: Mapped["Entry"] = relationship(
+        back_populates="tag_links",
+    )
+
+    tag: Mapped["Tag"] = relationship(
+        back_populates="entry_links",
     )

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -9,6 +10,7 @@ import { useRouter } from "next/navigation";
 
 import JournalFeed from "./components/JournalFeed";
 import QuickCapture from "./components/QuickCapture";
+import SearchControls from "./components/SearchControls";
 import SpaceControls from "./components/SpaceControls";
 
 import {
@@ -55,6 +57,113 @@ export default function Home() {
 
   const [message, setMessage] =
     useState("");
+  
+  const [
+    searchQuery,
+    setSearchQuery,
+  ] = useState("");
+
+  const [
+    selectedTag,
+    setSelectedTag,
+  ] = useState("all");
+
+  const availableTags =
+    useMemo(() => {
+      const tagNames =
+        entries.flatMap(
+          (entry) =>
+            (
+              entry.tag_links ??
+              []
+            ).map(
+              (link) =>
+                link.tag.name
+            )
+        );
+
+
+      return Array.from(
+        new Set(tagNames)
+      ).sort();
+
+    }, [entries]);
+  
+  const filteredEntries =
+    useMemo(() => {
+      const normalizedQuery =
+        searchQuery
+          .trim()
+          .toLowerCase();
+
+
+      return entries.filter(
+        (entry) => {
+
+          // Tag filter
+          const matchesTag =
+            selectedTag === "all" ||
+            (
+              entry.tag_links ??
+              []
+            ).some(
+              (link) =>
+                link.tag.name ===
+                selectedTag
+            );
+
+
+          // Search text
+          const searchableText = [
+            entry.content,
+
+            entry.author.username,
+
+            ...(
+              entry.tag_links ??
+              []
+            ).map(
+              (link) =>
+                link.tag.name
+            ),
+          ]
+            .join(" ")
+            .toLowerCase();
+
+
+          const matchesQuery =
+            normalizedQuery === "" ||
+            searchableText.includes(
+              normalizedQuery
+            );
+
+
+          return (
+            matchesTag &&
+            matchesQuery
+          );
+        }
+      );
+
+    }, [
+      entries,
+      searchQuery,
+      selectedTag,
+    ]);
+
+  useEffect(() => {
+    if (
+      selectedTag !== "all" &&
+      !availableTags.includes(
+        selectedTag
+      )
+    ) {
+      setSelectedTag("all");
+    }
+  }, [
+    availableTags,
+    selectedTag,
+  ]);
 
 
   function getToken() {
@@ -271,11 +380,13 @@ export default function Home() {
     }
 
 
+    setSearchQuery("");
+    setSelectedTag("all");
+
+
     localStorage.setItem(
       "selected_space_id",
-      String(
-        selectedSpaceId
-      )
+      String(selectedSpaceId)
     );
 
 
@@ -852,7 +963,237 @@ export default function Home() {
 
     return true;
   }
+  async function addTag(
+    entryId: number,
+    name: string
+  ): Promise<boolean> {
+    if (selectedSpaceId === null) {
+      return false;
+    }
 
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return false;
+    }
+
+    clearNotices();
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/tags`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          name,
+        }),
+      }
+    );
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      return false;
+    }
+
+    if (response.status === 409) {
+      setError(
+        "this tag is already attached."
+      );
+      return false;
+    }
+
+    if (response.status === 403) {
+      setError(
+        "you can only tag your own entries."
+      );
+      return false;
+    }
+
+    if (!response.ok) {
+      setError(
+        "couldn't add this tag."
+      );
+      return false;
+    }
+
+    const newTagLink =
+      await response.json();
+
+    setEntries(
+      (currentEntries) =>
+        currentEntries.map(
+          (entry) =>
+            entry.id === entryId
+              ? {
+                  ...entry,
+                  tag_links: [
+                    ...entry.tag_links,
+                    newTagLink,
+                  ],
+                }
+              : entry
+        )
+    );
+
+    return true;
+  }
+  async function addAiTag(
+    entryId: number,
+    name: string
+  ): Promise<boolean> {
+    if (selectedSpaceId === null) {
+      return false;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return false;
+    }
+
+    clearNotices();
+
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/ai-tags`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          name,
+        }),
+      }
+    );
+
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      return false;
+    }
+
+
+    if (response.status === 409) {
+      setError(
+        "this tag is already attached."
+      );
+
+      return false;
+    }
+
+
+    if (!response.ok) {
+      setError(
+        "couldn't add this AI tag."
+      );
+
+      return false;
+    }
+
+
+    const newTagLink =
+      await response.json();
+
+
+    setEntries(
+      (currentEntries) =>
+        currentEntries.map(
+          (entry) =>
+            entry.id === entryId
+              ? {
+                  ...entry,
+
+                  tag_links: [
+                    ...entry.tag_links,
+                    newTagLink,
+                  ],
+                }
+              : entry
+        )
+    );
+
+
+    return true;
+  }
+
+  async function removeTag(
+    entryId: number,
+    tagId: number
+  ): Promise<boolean> {
+    if (selectedSpaceId === null) {
+      return false;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return false;
+    }
+
+    clearNotices();
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/tags/${tagId}`,
+      {
+        method: "DELETE",
+
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      return false;
+    }
+
+    if (response.status === 403) {
+      setError(
+        "you can only modify tags on your own entries."
+      );
+      return false;
+    }
+
+    if (!response.ok) {
+      setError(
+        "couldn't remove this tag."
+      );
+      return false;
+    }
+
+    setEntries(
+      (currentEntries) =>
+        currentEntries.map(
+          (entry) =>
+            entry.id === entryId
+              ? {
+                  ...entry,
+                  tag_links:
+                    entry.tag_links.filter(
+                      (link) =>
+                        link.tag.id !==
+                        tagId
+                    ),
+                }
+              : entry
+        )
+    );
+
+    return true;
+  }
   async function deleteImage(
     entryId: number,
     imageId: number
@@ -949,6 +1290,50 @@ export default function Home() {
 
 
     return true;
+  }
+  async function suggestTags(
+    entryId: number
+  ): Promise<string[] | null> {
+    if (selectedSpaceId === null) {
+      return null;
+    }
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return null;
+    }
+
+    clearNotices();
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/tag-suggestions`,
+      {
+        method: "POST",
+
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.status === 401) {
+      handleUnauthorized();
+      return null;
+    }
+
+    if (!response.ok) {
+      setError(
+        "couldn't generate AI tag suggestions."
+      );
+
+      return null;
+    }
+
+    const data = await response.json();
+
+    return data.tags;
   }
 
   function logout() {
@@ -1065,33 +1450,53 @@ export default function Home() {
           )}
 
 
-        {selectedSpaceId !==
-          null && (
+        {selectedSpaceId !== null && (
           <QuickCapture
             content={content}
             saving={saving}
-
-            onContentChange={
-              setContent
-            }
-
-            onSave={
-              saveEntry
-            }
+            onContentChange={setContent}
+            onSave={saveEntry}
           />
         )}
 
-        
-        <JournalFeed
-          entries={entries}
-          loading={loading}
-          currentUserId={
-            currentUser?.id ?? null
-          }
-          onEditEntry={editEntry}
-          onDeleteEntry={deleteEntry}
-          onDeleteImage={deleteImage}
+
+        <SearchControls
+          query={searchQuery}
+          tags={availableTags}
+          selectedTag={selectedTag}
+          onQueryChange={setSearchQuery}
+          onTagChange={setSelectedTag}
         />
+
+
+        {!loading &&
+        entries.length > 0 &&
+        filteredEntries.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-sm text-text-muted">
+              no matches.
+            </p>
+
+            <p className="mt-1 text-xs text-text-muted">
+              다른 검색어나 태그를 써봐.
+            </p>
+          </div>
+        ) : (
+          <JournalFeed
+            entries={filteredEntries}
+            loading={loading}
+            currentUserId={
+              currentUser?.id ?? null
+            }
+            onEditEntry={editEntry}
+            onDeleteEntry={deleteEntry}
+            onDeleteImage={deleteImage}
+            onAddTag={addTag}
+            onAddAiTag={addAiTag}
+            onRemoveTag={removeTag}
+            onSuggestTags={suggestTags}
+          />
+        )}
       </div>
     </main>
   );

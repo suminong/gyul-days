@@ -20,6 +20,7 @@ export type Entry = {
   created_at: string;
   author: Author;
   images: EntryImage[];
+  tag_links: EntryTag[];
 };
 
 
@@ -35,4 +36,18 @@ export type Space = {
   id: number;
   name: string;
   created_at: string;
+};
+
+export type Tag = {
+  id: number;
+  name: string;
+  created_at: string;
+};
+
+
+export type EntryTag = {
+  id: number;
+  source: string;
+  confidence: number | null;
+  tag: Tag;
 };

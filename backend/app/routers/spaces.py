@@ -7,19 +7,24 @@ from fastapi import (
 )
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
-
+from app.ai import suggest_tags
 from app import models
 from app.database import get_db
 from app.security import get_current_user
+
 from app.schemas import (
+    AITagAccept, 
+    AITagSuggestionsResponse,
     EntryCreate,
     EntryImageResponse,
     EntryResponse,
+    EntryTagResponse,
     EntryUpdate,
     SpaceCreate,
     SpaceMemberAdd,
     SpaceResponse,
     SpaceUpdate,
+    TagCreate,
 )
 from pathlib import Path
 from uuid import uuid4
@@ -28,6 +33,7 @@ router = APIRouter(
     prefix="/spaces",
     tags=["spaces"],
 )
+
 
 UPLOAD_DIR = (
     Path(__file__).resolve().parents[2]
@@ -198,7 +204,13 @@ def get_space_entries(
         .options(
             selectinload(
                 models.Entry.images
-            )
+            ),
+
+            selectinload(
+                models.Entry.tag_links
+            ).selectinload(
+                models.EntryTag.tag
+            ),
         )
         .where(
             models.Entry.space_id == space_id
@@ -599,7 +611,7 @@ def delete_entry_image(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    # 1. Space member인지 확인
+    # 1. Check if Space member
     membership = db.scalar(
         select(models.SpaceMember).where(
             models.SpaceMember.space_id == space_id,
@@ -613,7 +625,7 @@ def delete_entry_image(
             detail="You are not a member of this space",
         )
 
-    # 2. Entry가 이 Space에 존재하는지 확인
+    # 2. Check if Entry exists in this Space
     entry = db.scalar(
         select(models.Entry).where(
             models.Entry.id == entry_id,
@@ -627,14 +639,14 @@ def delete_entry_image(
             detail="Entry not found",
         )
 
-    # 3. 작성자만 사진 삭제 가능
+    # 3. Only author can delete picture
     if entry.author_id != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="You can only delete images from your own entries",
         )
 
-    # 4. 해당 사진 찾기
+    # 4. Find image
     image = db.scalar(
         select(models.EntryImage).where(
             models.EntryImage.id == image_id,
@@ -648,7 +660,7 @@ def delete_entry_image(
             detail="Image not found",
         )
 
-    # 5. uploads 폴더의 실제 파일 경로
+    # 5. uploads folder file directory
     stored_filename = Path(
         image.file_path
     ).name
@@ -658,14 +670,450 @@ def delete_entry_image(
         / stored_filename
     )
 
-    # 6. 실제 파일 삭제
+    # 6. Delete existing file
     if full_path.exists():
         full_path.unlink()
 
-    # 7. DB에서도 삭제
+    # 7. Delete from DB as well
     db.delete(image)
     db.commit()
 
     return {
         "message": "Image deleted"
+    }
+
+@router.post(
+    "/{space_id}/entries/{entry_id}/tags",
+    response_model=EntryTagResponse,
+    status_code=201,
+)
+def add_entry_tag(
+    space_id: int,
+    entry_id: int,
+    tag_data: TagCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
+):
+    # Check if Space member 
+    membership = db.scalar(
+        select(
+            models.SpaceMember
+        ).where(
+            models.SpaceMember.space_id
+            == space_id,
+            models.SpaceMember.user_id
+            == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+
+    # Check Entry 
+    entry = db.scalar(
+        select(
+            models.Entry
+        ).where(
+            models.Entry.id
+            == entry_id,
+            models.Entry.space_id
+            == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+
+    # Only able to edit tags in your post 
+    if (
+        entry.author_id
+        != current_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only tag your own entries",
+        )
+
+
+    # "#Food", " food ", "FOOD"
+    # all same as "food" 
+    tag_name = (
+        tag_data.name
+        .strip()
+        .lstrip("#")
+        .lower()
+    )
+
+    if not tag_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Tag cannot be empty",
+        )
+
+
+    # Check if same tag exists in this space 
+    tag = db.scalar(
+        select(
+            models.Tag
+        ).where(
+            models.Tag.space_id
+            == space_id,
+            models.Tag.name
+            == tag_name,
+        )
+    )
+
+
+    # if not generate new tag 
+    if tag is None:
+        tag = models.Tag(
+            space_id=space_id,
+            name=tag_name,
+        )
+
+        db.add(tag)
+        db.flush()
+
+
+    # Check if it's already attached to this entry 
+    existing_link = db.scalar(
+        select(
+            models.EntryTag
+        ).where(
+            models.EntryTag.entry_id
+            == entry_id,
+            models.EntryTag.tag_id
+            == tag.id,
+        )
+    )
+
+    if existing_link is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Tag is already attached to this entry",
+        )
+
+
+    link = models.EntryTag(
+        entry_id=entry_id,
+        tag_id=tag.id,
+        source="manual",
+        confidence=None,
+    )
+
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+
+
+    return {
+        "id": link.id,
+        "source": link.source,
+        "confidence": link.confidence,
+        "tag": tag,
+    }
+
+@router.delete(
+    "/{space_id}/entries/{entry_id}/tags/{tag_id}",
+)
+def remove_entry_tag(
+    space_id: int,
+    entry_id: int,
+    tag_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
+):
+    membership = db.scalar(
+        select(
+            models.SpaceMember
+        ).where(
+            models.SpaceMember.space_id
+            == space_id,
+            models.SpaceMember.user_id
+            == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+
+    entry = db.scalar(
+        select(
+            models.Entry
+        ).where(
+            models.Entry.id
+            == entry_id,
+            models.Entry.space_id
+            == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+
+    if (
+        entry.author_id
+        != current_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only modify your own entries",
+        )
+
+
+    link = db.scalar(
+        select(
+            models.EntryTag
+        ).where(
+            models.EntryTag.entry_id
+            == entry_id,
+            models.EntryTag.tag_id
+            == tag_id,
+        )
+    )
+
+    if link is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Tag not found on this entry",
+        )
+
+
+    db.delete(link)
+    db.commit()
+
+    return {
+        "message": "Tag removed"
+    }
+
+@router.post(
+    "/{space_id}/entries/{entry_id}/tag-suggestions",
+    response_model=AITagSuggestionsResponse,
+)
+def get_ai_tag_suggestions(
+    space_id: int,
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
+):
+    # Check Space member 
+    membership = db.scalar(
+        select(
+            models.SpaceMember
+        ).where(
+            models.SpaceMember.space_id
+            == space_id,
+
+            models.SpaceMember.user_id
+            == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not a member "
+                "of this space"
+            ),
+        )
+
+
+    # Find Entry  
+    entry = db.scalar(
+        select(
+            models.Entry
+        ).where(
+            models.Entry.id
+            == entry_id,
+
+            models.Entry.space_id
+            == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+
+    # Inform AI existing tag names in this Space  
+    existing_tags = list(
+        db.scalars(
+            select(
+                models.Tag.name
+            )
+            .where(
+                models.Tag.space_id
+                == space_id
+            )
+            .order_by(
+                models.Tag.name
+            )
+        ).all()
+    )
+
+
+    try:
+        tags = suggest_tags(
+            content=entry.content,
+            existing_tags=existing_tags,
+        )
+
+    except Exception as error:
+        print(
+            "AI tag suggestion error:",
+            error,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Could not generate "
+                "AI tag suggestions"
+            ),
+        )
+
+
+    return {
+        "tags": tags
+    }
+@router.post(
+    "/{space_id}/entries/{entry_id}/ai-tags",
+    response_model=EntryTagResponse,
+    status_code=201,
+)
+def accept_ai_tag(
+    space_id: int,
+    entry_id: int,
+    tag_data: AITagAccept,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
+):
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id == space_id,
+            models.SpaceMember.user_id == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this space",
+        )
+
+
+    entry = db.scalar(
+        select(models.Entry).where(
+            models.Entry.id == entry_id,
+            models.Entry.space_id == space_id,
+        )
+    )
+
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Entry not found",
+        )
+
+
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only tag your own entries",
+        )
+
+
+    tag_name = (
+        tag_data.name
+        .strip()
+        .lstrip("#")
+        .lower()
+    )
+
+
+    if not tag_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Tag cannot be empty",
+        )
+
+
+    tag = db.scalar(
+        select(models.Tag).where(
+            models.Tag.space_id == space_id,
+            models.Tag.name == tag_name,
+        )
+    )
+
+
+    if tag is None:
+        tag = models.Tag(
+            space_id=space_id,
+            name=tag_name,
+        )
+
+        db.add(tag)
+        db.flush()
+
+
+    existing_link = db.scalar(
+        select(models.EntryTag).where(
+            models.EntryTag.entry_id == entry_id,
+            models.EntryTag.tag_id == tag.id,
+        )
+    )
+
+
+    if existing_link is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Tag is already attached to this entry",
+        )
+
+
+    link = models.EntryTag(
+        entry_id=entry_id,
+        tag_id=tag.id,
+        source="ai",
+        confidence=None,
+    )
+
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+
+
+    return {
+        "id": link.id,
+        "source": link.source,
+        "confidence": link.confidence,
+        "tag": tag,
     }

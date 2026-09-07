@@ -1,7 +1,5 @@
 from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
-
 
 class EntryCreate(BaseModel):
     content: str
@@ -31,6 +29,33 @@ class EntryImageResponse(BaseModel):
         from_attributes=True
     )
 
+class TagCreate(BaseModel):
+    name: str = Field(
+        min_length=1,
+        max_length=50,
+    )
+
+
+class TagResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class EntryTagResponse(BaseModel):
+    id: int
+    source: str
+    confidence: float | None
+    tag: TagResponse
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
 
 class EntryResponse(BaseModel):
     id: int
@@ -39,6 +64,10 @@ class EntryResponse(BaseModel):
     author: EntryAuthor
 
     images: list[EntryImageResponse] = Field(
+        default_factory=list
+    )
+
+    tag_links: list[EntryTagResponse] = Field(
         default_factory=list
     )
 
@@ -100,4 +129,14 @@ class SpaceUpdate(BaseModel):
         min_length=1,
         max_length=100,
     )
- 
+
+class AITagSuggestionsResponse(
+    BaseModel
+):
+    tags: list[str]
+
+class AITagAccept(BaseModel):
+    name: str = Field(
+        min_length=1,
+        max_length=50,
+    )
