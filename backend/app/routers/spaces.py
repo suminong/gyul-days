@@ -25,6 +25,7 @@ from app.schemas import (
     SpaceResponse,
     SpaceUpdate,
     TagCreate,
+    StreakResponse,
 )
 
 from uuid import uuid4
@@ -33,6 +34,8 @@ from app.storage import (
     delete_image_from_storage,
     upload_image,
 )
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 router = APIRouter(
     prefix="/spaces",
@@ -245,6 +248,192 @@ def get_space_entries(
 
                     image.display_url = None
     return entries
+
+@router.get(
+    "/{space_id}/streak",
+    response_model=StreakResponse,
+)
+def get_space_streak(
+    space_id: int,
+    timezone_name: str = "UTC",
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
+):
+    # 1. Check Space membership
+    membership = db.scalar(
+        select(models.SpaceMember).where(
+            models.SpaceMember.space_id
+            == space_id,
+            models.SpaceMember.user_id
+            == current_user.id,
+        )
+    )
+
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not a member "
+                "of this space"
+            ),
+        )
+
+    # 2. Validate timezone
+    try:
+        user_timezone = ZoneInfo(
+            timezone_name
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid timezone",
+        )
+
+    # 3. Get this user's entry dates
+    created_times = db.scalars(
+        select(
+            models.Entry.created_at
+        ).where(
+            models.Entry.space_id
+            == space_id,
+            models.Entry.author_id
+            == current_user.id,
+        )
+    ).all()
+
+    # 4. Convert timestamps into local calendar dates
+    recorded_dates = set()
+
+    for created_at in created_times:
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(
+                tzinfo=timezone.utc
+            )
+
+        local_date = (
+            created_at
+            .astimezone(user_timezone)
+            .date()
+        )
+
+        recorded_dates.add(
+            local_date
+        )
+
+    # No records yet
+    if not recorded_dates:
+        return {
+            "current_streak": 0,
+            "longest_streak": 0,
+            "total_recorded_days": 0,
+            "stage": "none",
+            "next_milestone": 7,
+        }
+
+    today = (
+        datetime.now(
+            user_timezone
+        ).date()
+    )
+
+    yesterday = (
+        today - timedelta(days=1)
+    )
+
+    # 5. Current streak
+    if today in recorded_dates:
+        cursor = today
+
+    elif yesterday in recorded_dates:
+        cursor = yesterday
+
+    else:
+        cursor = None
+
+    current_streak = 0
+
+    while (
+        cursor is not None
+        and cursor in recorded_dates
+    ):
+        current_streak += 1
+        cursor -= timedelta(days=1)
+
+    # 6. Longest streak
+    sorted_dates = sorted(
+        recorded_dates
+    )
+
+    longest_streak = 1
+    running_streak = 1
+
+    for index in range(
+        1,
+        len(sorted_dates),
+    ):
+        previous_date = (
+            sorted_dates[index - 1]
+        )
+
+        current_date = (
+            sorted_dates[index]
+        )
+
+        if (
+            current_date
+            == previous_date
+            + timedelta(days=1)
+        ):
+            running_streak += 1
+
+        else:
+            running_streak = 1
+
+        longest_streak = max(
+            longest_streak,
+            running_streak,
+        )
+
+    # 7. Gyul milestone
+    if current_streak >= 60:
+        stage = "tree"
+        next_milestone = None
+
+    elif current_streak >= 30:
+        stage = "box"
+        next_milestone = 60
+
+    elif current_streak >= 14:
+        stage = "two_oranges"
+        next_milestone = 30
+
+    elif current_streak >= 7:
+        stage = "orange"
+        next_milestone = 14
+
+    else:
+        stage = "none"
+        next_milestone = 7
+
+    return {
+        "current_streak":
+            current_streak,
+
+        "longest_streak":
+            longest_streak,
+
+        "total_recorded_days":
+            len(recorded_dates),
+
+        "stage":
+            stage,
+
+        "next_milestone":
+            next_milestone,
+    }
 
 @router.post(
     "/{space_id}/entries",

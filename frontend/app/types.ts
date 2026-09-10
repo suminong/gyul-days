@@ -63,3 +63,16 @@ export type EntryTag = {
   confidence: number | null;
   tag: Tag;
 };
+
+export type StreakResponse = {
+  current_streak: number;
+  longest_streak: number;
+  total_recorded_days: number;
+  stage:
+    | "none"
+    | "orange"
+    | "two_oranges"
+    | "box"
+    | "tree";
+  next_milestone: number | null;
+};

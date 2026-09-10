@@ -145,3 +145,10 @@ class AITagAccept(BaseModel):
         min_length=1,
         max_length=50,
     )
+
+class StreakResponse(BaseModel):
+    current_streak: int
+    longest_streak: int
+    total_recorded_days: int
+    stage: str
+    next_milestone: int | None

@@ -19,12 +19,19 @@ import {
   User,
 } from "./types";
 
+import StreakCard from "./components/StreakCard";
+
 
 export default function Home() {
   const router = useRouter();
 
   const [entries, setEntries] =
     useState<Entry[]>([]);
+  
+  const [
+    streakRefreshKey,
+    setStreakRefreshKey,
+  ] = useState(0);
 
   const [spaces, setSpaces] =
     useState<Space[]>([]);
@@ -526,6 +533,10 @@ export default function Home() {
         selectedSpaceId
       );
 
+      setStreakRefreshKey(
+        (current) => current + 1
+      );
+
 
       if (
         imageUploadFailed
@@ -960,6 +971,9 @@ export default function Home() {
         )
     );
 
+    setStreakRefreshKey(
+      (current) => current + 1
+    );
 
     return true;
   }
@@ -1415,6 +1429,10 @@ export default function Home() {
             onInviteMember={
               inviteMember
             }
+          />
+          <StreakCard
+            spaceId={selectedSpaceId}
+            refreshKey={streakRefreshKey}
           />
 
         </header>
