@@ -20,7 +20,12 @@ class EntryAuthor(BaseModel):
 class EntryImageResponse(BaseModel):
     id: int
     entry_id: int
-    file_path: str
+
+    storage_provider: str | None
+    storage_key: str | None
+
+    display_url: str | None = None
+
     original_filename: str | None
     content_type: str | None
     created_at: datetime

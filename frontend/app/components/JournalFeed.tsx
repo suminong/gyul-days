@@ -288,6 +288,12 @@ export default function JournalFeed({
     setEditContent("");
   }
 
+	function getImageSrc(
+		image: EntryImage
+	) {
+		return image.display_url ?? "";
+	}
+
 
   async function saveEdit() {
     if (
@@ -1057,7 +1063,7 @@ export default function JournalFeed({
                                       >
 
                                         <img
-                                          src={`${process.env.NEXT_PUBLIC_API_URL}${image.file_path}`}
+                                          src={getImageSrc(image)}
                                           alt={
                                             image.original_filename ??
                                             "journal image"
@@ -1207,7 +1213,7 @@ export default function JournalFeed({
 
 
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL}${lightboxImage.file_path}`}
+            src={getImageSrc(lightboxImage)}
             alt={
               lightboxImage.original_filename ??
               "journal image"

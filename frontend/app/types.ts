@@ -3,13 +3,25 @@ export type Author = {
   username: string;
 };
 
-
 export type EntryImage = {
   id: number;
   entry_id: number;
-  file_path: string;
-  original_filename: string | null;
-  content_type: string | null;
+
+  storage_provider:
+    string | null;
+
+  storage_key:
+    string | null;
+
+  display_url:
+    string | null;
+
+  original_filename:
+    string | null;
+
+  content_type:
+    string | null;
+
   created_at: string;
 };
 

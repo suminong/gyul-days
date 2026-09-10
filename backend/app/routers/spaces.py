@@ -26,8 +26,13 @@ from app.schemas import (
     SpaceUpdate,
     TagCreate,
 )
-from pathlib import Path
+
 from uuid import uuid4
+from app.storage import (
+    create_signed_image_url,
+    delete_image_from_storage,
+    upload_image,
+)
 
 router = APIRouter(
     prefix="/spaces",
@@ -35,15 +40,6 @@ router = APIRouter(
 )
 
 
-UPLOAD_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "uploads"
-)
-
-UPLOAD_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
 
 
 ALLOWED_IMAGE_TYPES = {
@@ -219,8 +215,36 @@ def get_space_entries(
             models.Entry.created_at.desc()
         )
     )
+ 
+    entries = db.scalars(
+        statement
+    ).all()
 
-    return db.scalars(statement).all()
+
+    for entry in entries:
+        for image in entry.images:
+
+            # new Supabase image
+            if (
+                image.storage_provider
+                == "supabase"
+                and image.storage_key
+            ):
+                try:
+                    image.display_url = (
+                        create_signed_image_url(
+                            image.storage_key
+                        )
+                    )
+
+                except Exception as error:
+                    print(
+                        "Signed URL error:",
+                        error,
+                    )
+
+                    image.display_url = None
+    return entries
 
 @router.post(
     "/{space_id}/entries",
@@ -416,29 +440,38 @@ def delete_space_entry(
         )
 
 
-    # 4. 삭제 전에 이미지 파일 경로 저장
-    image_paths = []
+    # 4. Remember Supabase image keys
+    cloud_storage_keys = []
 
     for image in entry.images:
-        stored_filename = Path(
-            image.file_path
-        ).name
+        if (
+            image.storage_provider == "supabase"
+            and image.storage_key
+        ):
+            cloud_storage_keys.append(
+                image.storage_key
+            )
 
-        image_paths.append(
-            UPLOAD_DIR / stored_filename
-        )
 
-
-    # 5. DB에서 Entry 삭제
-    # EntryImage row는 relationship/cascade 때문에 같이 삭제됨
+    # 5. Delete Entry from DB
+    # EntryImage rows are deleted through cascade
     db.delete(entry)
     db.commit()
 
 
-    # 6. DB 삭제 성공 후 실제 이미지 파일 삭제
-    for image_path in image_paths:
-        if image_path.exists():
-            image_path.unlink()
+    # 6. Delete actual files from Supabase Storage
+    for storage_key in cloud_storage_keys:
+        try:
+            delete_image_from_storage(
+                storage_key
+            )
+
+        except Exception as error:
+            print(
+                "Supabase cleanup error:",
+                storage_key,
+                error,
+            )
 
 
     return {
@@ -564,40 +597,75 @@ async def upload_entry_image(
     )
 
     stored_filename = (
-        f"{uuid4().hex}"
+    f"{uuid4().hex}"
         f"{extension}"
     )
 
-    full_path = (
-        UPLOAD_DIR
-        / stored_filename
+    # File Location in Supabase Storage 
+    storage_key = (
+        f"spaces/{space_id}/"
+        f"entries/{entry_id}/"
+        f"{stored_filename}"
     )
 
 
-    # 8. Save image file
-    full_path.write_bytes(
-        contents
-    )
+    # 8. Upload image to Supabase Storage
+    try:
+        upload_image(
+            storage_key=storage_key,
+            data=contents,
+            content_type=content_type,
+        )
+
+    except Exception as error:
+        print(
+            "Supabase upload error:",
+            error,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Could not upload image "
+                "to cloud storage"
+            ),
+        )
 
 
-    # 9. Record file location in DB
+    # 9. Record cloud file location in DB
     image = models.EntryImage(
         entry_id=entry.id,
-        file_path=(
-            f"/uploads/"
-            f"{stored_filename}"
-        ),
-        original_filename=(
-            file.filename
-        ),
-        content_type=(
-            content_type
-        ),
+
+        storage_provider="supabase",
+        storage_key=storage_key,
+
+        original_filename=file.filename,
+        content_type=content_type,
     )
 
-    db.add(image)
-    db.commit()
-    db.refresh(image)
+
+    try:
+        db.add(image)
+        db.commit()
+        db.refresh(image)
+
+    except Exception:
+        # If fail saving DB, delete already uploaded cloud image
+        try:
+            delete_image_from_storage(
+                storage_key
+            )
+        except Exception:
+            pass
+
+        raise
+
+
+    image.display_url = (
+        create_signed_image_url(
+            storage_key
+        )
+    )
 
     return image
 
@@ -609,27 +677,36 @@ def delete_entry_image(
     entry_id: int,
     image_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
 ):
-    # 1. Check if Space member
+    # 1. Check Space membership
     membership = db.scalar(
         select(models.SpaceMember).where(
-            models.SpaceMember.space_id == space_id,
-            models.SpaceMember.user_id == current_user.id,
+            models.SpaceMember.space_id
+            == space_id,
+            models.SpaceMember.user_id
+            == current_user.id,
         )
     )
 
     if membership is None:
         raise HTTPException(
             status_code=403,
-            detail="You are not a member of this space",
+            detail=(
+                "You are not a member "
+                "of this space"
+            ),
         )
 
-    # 2. Check if Entry exists in this Space
+
+    # 2. Check Entry
     entry = db.scalar(
         select(models.Entry).where(
             models.Entry.id == entry_id,
-            models.Entry.space_id == space_id,
+            models.Entry.space_id
+            == space_id,
         )
     )
 
@@ -639,18 +716,25 @@ def delete_entry_image(
             detail="Entry not found",
         )
 
-    # 3. Only author can delete picture
+
+    # 3. Only author can delete image
     if entry.author_id != current_user.id:
         raise HTTPException(
             status_code=403,
-            detail="You can only delete images from your own entries",
+            detail=(
+                "You can only delete images "
+                "from your own entries"
+            ),
         )
 
-    # 4. Find image
+
+    # 4. Find the specific image
     image = db.scalar(
         select(models.EntryImage).where(
-            models.EntryImage.id == image_id,
-            models.EntryImage.entry_id == entry_id,
+            models.EntryImage.id
+            == image_id,
+            models.EntryImage.entry_id
+            == entry_id,
         )
     )
 
@@ -660,28 +744,40 @@ def delete_entry_image(
             detail="Image not found",
         )
 
-    # 5. uploads folder file directory
-    stored_filename = Path(
-        image.file_path
-    ).name
 
-    full_path = (
-        UPLOAD_DIR
-        / stored_filename
-    )
+    # 5. Delete actual file from Supabase Storage
+    if (
+        image.storage_provider == "supabase"
+        and image.storage_key
+    ):
+        try:
+            delete_image_from_storage(
+                image.storage_key
+            )
 
-    # 6. Delete existing file
-    if full_path.exists():
-        full_path.unlink()
+        except Exception as error:
+            print(
+                "Supabase image delete error:",
+                error,
+            )
 
-    # 7. Delete from DB as well
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Could not delete image "
+                    "from cloud storage"
+                ),
+            )
+
+
+    # 6. Delete only this EntryImage row
     db.delete(image)
     db.commit()
+
 
     return {
         "message": "Image deleted"
     }
-
 @router.post(
     "/{space_id}/entries/{entry_id}/tags",
     response_model=EntryTagResponse,

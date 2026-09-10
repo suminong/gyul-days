@@ -172,9 +172,19 @@ class EntryImage(Base):
         nullable=False,
     )
 
-    file_path: Mapped[str] = mapped_column(
+
+    storage_provider: Mapped[
+        str | None
+    ] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    storage_key: Mapped[
+        str | None
+    ] = mapped_column(
         String(500),
-        nullable=False,
+        nullable=True,
     )
 
     original_filename: Mapped[str | None] = mapped_column(
