@@ -13,10 +13,11 @@ type SpaceControlsProps = {
   spaces: Space[];
 
   selectedSpaceId:
-    number | null;
+    number | "all" | null;
 
   onSelectSpace: (
-    spaceId: number
+    spaceId:
+      number | "all"
   ) => void;
 
   onCreateSpace: (
@@ -75,16 +76,23 @@ export default function SpaceControls({
     setMode("none");
     setValue("");
   }
-
-
+ 
   function handleSpaceChange(
     event:
       ChangeEvent<HTMLSelectElement>
   ) {
+    const value =
+      event.target.value;
+
+
+    if (value === "all") {
+      onSelectSpace("all");
+      return;
+    }
+
+
     onSelectSpace(
-      Number(
-        event.target.value
-      )
+      Number(value)
     );
   }
 
@@ -212,6 +220,10 @@ export default function SpaceControls({
                 "
               >
 
+                <option value="all">
+                  all spaces
+                </option>
+
                 {spaces.map(
                   (space) => (
                     <option
@@ -224,6 +236,7 @@ export default function SpaceControls({
                 )}
 
               </select>
+
 
               <span
                 className="
@@ -238,29 +251,32 @@ export default function SpaceControls({
               >
                 ▾
               </span>
-            </div> 
+            </div>
+
+            {selectedSpaceId !== "all" && (
+              <>
+                <button
+                  type="button"
+                  onClick={
+                    startRename
+                  }
+                  className="rounded-2xl border border-border bg-surface px-4 text-sm text-text-muted hover:text-orange-dark"
+                >
+                  edit
+                </button>
 
 
-            <button
-              type="button"
-              onClick={
-                startRename
-              }
-              className="rounded-2xl border border-border bg-surface px-4 text-sm text-text-muted hover:text-orange-dark"
-            >
-              edit
-            </button>
-
-
-            <button
-              type="button"
-              onClick={
-                startInvite
-              }
-              className="rounded-2xl border border-border bg-surface px-4 text-sm text-text-muted hover:text-orange-dark"
-            >
-              invite
-            </button>
+                <button
+                  type="button"
+                  onClick={
+                    startInvite
+                  }
+                  className="rounded-2xl border border-border bg-surface px-4 text-sm text-text-muted hover:text-orange-dark"
+                >
+                  invite
+                </button>
+              </>
+            )}
 
           </div>
         )}

@@ -39,7 +39,9 @@ export default function Home() {
   const [
     selectedSpaceId,
     setSelectedSpaceId,
-  ] = useState<number | null>(
+  ] = useState<
+    number | "all" | null
+  >(
     null
   );
 
@@ -304,6 +306,12 @@ export default function Home() {
       );
 
 
+    if (savedSpaceId === "all") {
+      setSelectedSpaceId("all");
+      return;
+    }
+
+
     const savedSpace =
       data.find(
         (space) =>
@@ -386,9 +394,22 @@ export default function Home() {
       return;
     }
 
-
     setSearchQuery("");
     setSelectedTag("all");
+
+
+    if (
+      selectedSpaceId === "all"
+    ) {
+      localStorage.setItem(
+        "selected_space_id",
+        "all"
+      );
+
+      loadAllEntries();
+
+      return;
+    }
 
 
     localStorage.setItem(
@@ -401,8 +422,111 @@ export default function Home() {
       selectedSpaceId
     );
 
-  }, [selectedSpaceId]);
+  }, [
+    selectedSpaceId,
+    spaces,
+  ]);
 
+
+
+  async function loadAllEntries() {
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const responses =
+        await Promise.all(
+          spaces.map(
+            (space) =>
+              fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/spaces/${space.id}/entries`,
+                {
+                  headers: {
+                    Authorization:
+                      `Bearer ${token}`,
+                  },
+                }
+              )
+          )
+        );
+
+
+      if (
+        responses.some(
+          (response) =>
+            !response.ok
+        )
+      ) {
+        setError(
+          "couldn't load all spaces."
+        );
+
+        setLoading(false);
+        return;
+      }
+
+
+      const entryGroups =
+        await Promise.all(
+          responses.map(
+            (response) =>
+              response.json()
+          )
+        );
+
+
+      const allEntries: Entry[] =
+        entryGroups
+          .flat()
+          .sort(
+            (a, b) =>
+              new Date(
+                b.created_at
+              ).getTime() -
+              new Date(
+                a.created_at
+              ).getTime()
+          );
+
+
+      setEntries(allEntries);
+
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  function getEntrySpaceId(
+    entryId: number
+  ): number | null {
+    const entry = entries.find(
+      (entry) =>
+        entry.id === entryId
+    );
+
+    if (
+      typeof entry?.space_id ===
+      "number"
+    ) {
+      return entry.space_id;
+    }
+
+    if (
+      typeof selectedSpaceId ===
+      "number"
+    ) {
+      return selectedSpaceId;
+    }
+
+    return null;
+  }
 
   async function saveEntry(
     files: File[]
@@ -819,9 +943,10 @@ export default function Home() {
     entryId: number,
     newContent: string
   ): Promise<boolean> {
-    if (
-      selectedSpaceId === null
-    ) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return false;
     }
 
@@ -836,7 +961,7 @@ export default function Home() {
 
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}`,
       {
         method: "PATCH",
 
@@ -906,9 +1031,10 @@ export default function Home() {
   async function deleteEntry(
     entryId: number
   ): Promise<boolean> {
-    if (
-      selectedSpaceId === null
-    ) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return false;
     }
 
@@ -922,8 +1048,8 @@ export default function Home() {
     clearNotices();
 
 
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}`,
+    const response = await fetch( 
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}`,
       {
         method: "DELETE",
 
@@ -981,7 +1107,10 @@ export default function Home() {
     entryId: number,
     name: string
   ): Promise<boolean> {
-    if (selectedSpaceId === null) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return false;
     }
 
@@ -995,7 +1124,7 @@ export default function Home() {
     clearNotices();
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/tags`,
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}/tags`,
       {
         method: "POST",
 
@@ -1061,7 +1190,10 @@ export default function Home() {
     entryId: number,
     name: string
   ): Promise<boolean> {
-    if (selectedSpaceId === null) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return false;
     }
 
@@ -1076,7 +1208,7 @@ export default function Home() {
 
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/ai-tags`,
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}/ai-tags`,
       {
         method: "POST",
 
@@ -1145,7 +1277,10 @@ export default function Home() {
     entryId: number,
     tagId: number
   ): Promise<boolean> {
-    if (selectedSpaceId === null) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return false;
     }
 
@@ -1159,7 +1294,7 @@ export default function Home() {
     clearNotices();
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/tags/${tagId}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}/tags/${tagId}`,
       {
         method: "DELETE",
 
@@ -1212,10 +1347,10 @@ export default function Home() {
     entryId: number,
     imageId: number
   ): Promise<boolean> {
-    if (
-      selectedSpaceId ===
-      null
-    ) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return false;
     }
 
@@ -1234,7 +1369,7 @@ export default function Home() {
 
     const response =
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/images/${imageId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}/images/${imageId}`,
         {
           method: "DELETE",
 
@@ -1308,7 +1443,10 @@ export default function Home() {
   async function suggestTags(
     entryId: number
   ): Promise<string[] | null> {
-    if (selectedSpaceId === null) {
+    const spaceId =
+      getEntrySpaceId(entryId);
+
+    if (spaceId === null) {
       return null;
     }
 
@@ -1322,7 +1460,7 @@ export default function Home() {
     clearNotices();
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${selectedSpaceId}/entries/${entryId}/tag-suggestions`,
+      `${process.env.NEXT_PUBLIC_API_URL}/spaces/${spaceId}/entries/${entryId}/tag-suggestions`,
       {
         method: "POST",
 
@@ -1430,10 +1568,12 @@ export default function Home() {
               inviteMember
             }
           />
-          <StreakCard
-            spaceId={selectedSpaceId}
-            refreshKey={streakRefreshKey}
-          />
+          {typeof selectedSpaceId === "number" && (
+            <StreakCard
+              spaceId={selectedSpaceId}
+              refreshKey={streakRefreshKey}
+            />
+          )}
 
         </header>
 
@@ -1457,26 +1597,26 @@ export default function Home() {
             <div className="mb-12 rounded-3xl border border-border bg-surface p-8 text-center">
 
               <p className="text-sm text-text-muted">
-                아직 Space가 없어.
+                No space yet..
               </p>
 
               <p className="mt-2 text-xs text-text-muted">
-                + new space를 눌러봐.
+                Try clicking + new space..
               </p>
 
             </div>
           )}
 
-
-        {selectedSpaceId !== null && (
-          <QuickCapture
+        {selectedSpaceId !== null &&
+          selectedSpaceId !== "all" && (
+            <QuickCapture
+        
             content={content}
             saving={saving}
             onContentChange={setContent}
             onSave={saveEntry}
           />
         )}
-
 
         <SearchControls
           query={searchQuery}
@@ -1485,8 +1625,7 @@ export default function Home() {
           onQueryChange={setSearchQuery}
           onTagChange={setSelectedTag}
         />
-
-
+  
         {!loading &&
         entries.length > 0 &&
         filteredEntries.length === 0 ? (
@@ -1496,7 +1635,7 @@ export default function Home() {
             </p>
 
             <p className="mt-1 text-xs text-text-muted">
-              다른 검색어나 태그를 써봐.
+              Try searching something else..
             </p>
           </div>
         ) : (
@@ -1506,6 +1645,12 @@ export default function Home() {
             currentUserId={
               currentUser?.id ?? null
             }
+
+            spaces={spaces}
+            showSpaceName={
+              selectedSpaceId === "all"
+            }
+
             onEditEntry={editEntry}
             onDeleteEntry={deleteEntry}
             onDeleteImage={deleteImage}

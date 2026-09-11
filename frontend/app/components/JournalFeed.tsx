@@ -5,16 +5,19 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-
+ 
 import {
   Entry,
   EntryImage,
+  Space,
 } from "../types";
 
 
 type JournalFeedProps = {
   entries: Entry[];
   loading: boolean;
+	spaces: Space[]; 
+	showSpaceName: boolean;	
 
   currentUserId:
     number | null;
@@ -51,6 +54,8 @@ type JournalFeedProps = {
 		entryId: number,
 		name: string
 	) => Promise<boolean>;
+
+	
 };
 
 
@@ -169,14 +174,16 @@ function getDayIntensity(
 export default function JournalFeed({
   entries,
   loading,
+  spaces,
+  showSpaceName,
   currentUserId,
   onEditEntry,
   onDeleteEntry,
   onDeleteImage,
   onAddTag,
-	onAddAiTag,
+  onAddAiTag,
   onRemoveTag,
-	onSuggestTags,
+  onSuggestTags,
 }: JournalFeedProps) {
 
   const [
@@ -660,6 +667,13 @@ export default function JournalFeed({
                     editingEntryId ===
                     entry.id;
 
+									const spaceName =
+										spaces.find(
+											(space) =>
+												space.id ===
+												entry.space_id
+										)?.name;
+
 
                   return (
                     <article
@@ -670,13 +684,33 @@ export default function JournalFeed({
                       {/* AUTHOR */}
                       <div className="mb-3 flex items-center justify-between gap-4">
 
-                        <span className="text-sm font-medium text-orange-dark">
-                          {
-                            entry
-                              .author
-                              .username
-                          }
-                        </span>
+                        <div className="flex items-center gap-2">
+
+													<span className="text-sm font-medium text-orange-dark">
+														{entry.author.username}
+													</span>
+
+
+													{showSpaceName &&
+														spaceName && (
+															<span
+																className="
+																	rounded-full
+																	border
+																	border-green-light
+																	bg-white/45
+																	px-2.5
+																	py-1
+																	text-[10px]
+																	font-medium
+																	text-green-dark
+																"
+															>
+																{spaceName}
+															</span>
+														)}
+
+												</div>
 
                         <time className="text-xs text-text-muted">
                           {new Date(

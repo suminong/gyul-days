@@ -81,6 +81,7 @@ class EntryResponse(BaseModel):
     content: str
     created_at: datetime
     author: EntryAuthor
+    space_id: int | None
 
     images: list[EntryImageResponse] = Field(
         default_factory=list

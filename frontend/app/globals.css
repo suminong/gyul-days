@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fff1e3;
-  --surface: rgba(255, 252, 247, 0.78);
+  --background: #eaf0e2;
+
+  --surface: rgba(
+    255,
+    253,
+    248,
+    0.70
+  );
 
   --orange: #d97745;
   --orange-dark: #a9532f;
@@ -12,19 +18,35 @@
   --green-dark: #526a56;
   --green-light: #cbd8c7;
 
-  --border: #e8d8ca;
-  --text: #3c2f2a;
-  --text-muted: #8a7468;
+  --border: #d4ddcc;
+  --text: #3c3a32;
+  --text-muted: #77786e;
 
-  /* background accents */
-  --bg-orange-soft: rgba(244, 166, 88, 0.20);
-  --bg-orange-deep: rgba(230, 133, 49, 0.16);
-  --bg-yellow-soft: rgba(255, 220, 120, 0.18);
+  --bg-lime: rgba(
+    207,
+    224,
+    156,
+    0.48
+  );
 
-  /* pixel pattern */
-  --pixel-orange: rgba(226, 142, 61, 0.08);
-  --pixel-yellow: rgba(255, 214, 110, 0.07);
+  --bg-mint: rgba(162, 204, 167, 0.55);
+  --bg-sage: rgba(112, 158, 118, 0.40);
+
+  --bg-deep-green: rgba(
+    71,
+    122,
+    82,
+    0.07
+  );
+
+  --bg-white-haze: rgba(
+    255,
+    255,
+    255,
+    0.24
+  );
 }
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -44,44 +66,54 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
-
 body {
   color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
 
-  background-color: var(--background);
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  background-color:
+    var(--background);
 
   background-image:
+
     radial-gradient(
-      circle at 18% 16%,
-      var(--bg-yellow-soft) 0,
-      transparent 28%
+      ellipse at 28% 12%,
+      var(--bg-lime) 0%,
+      transparent 38%
     ),
+
     radial-gradient(
-      circle at 82% 14%,
-      var(--bg-orange-soft) 0,
-      transparent 30%
+      ellipse at 70% 18%,
+      var(--bg-mint) 0%,
+      transparent 42%
     ),
+
     radial-gradient(
-      circle at 70% 78%,
-      var(--bg-orange-deep) 0,
-      transparent 26%
+      ellipse at 65% 72%,
+      var(--bg-sage) 0%,
+      transparent 44%
     ),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0 12px,
-      rgba(255, 255, 255, 0.06) 12px 13px
+
+    radial-gradient(
+      ellipse at 35% 82%,
+      var(--bg-deep-green) 0%,
+      transparent 46%
     ),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 12px,
-      rgba(255, 255, 255, 0.06) 12px 13px
+
+    radial-gradient(
+      ellipse at 50% 45%,
+      var(--bg-white-haze) 0%,
+      transparent 52%
     ),
+
     linear-gradient(
       135deg,
-      var(--background) 0%,
-      #fff4e8 35%,
-      #ffe9c8 100%
+      #f4f7ef 0%,
+      #eaf1e3 50%,
+      #e6eee0 100%
     );
 
   background-attachment: fixed;

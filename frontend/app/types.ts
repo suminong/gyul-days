@@ -34,6 +34,7 @@ export type Entry = {
   images: EntryImage[];
   tag_links: EntryTag[];
   analysis: EntryAnalysis | null;
+  space_id: number | null;
 };
 
 
