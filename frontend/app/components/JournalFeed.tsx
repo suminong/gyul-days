@@ -3,6 +3,7 @@
 import {
   useEffect,
   useState,
+  type CSSProperties,
 } from "react";
 
 import {
@@ -142,6 +143,26 @@ function groupEntriesByDate(
     },
     {}
   );
+}
+
+function getDayIntensity(
+  entries: Entry[]
+) {
+  const scores = entries
+    .map(
+      (entry) =>
+        entry.analysis?.gyul_intensity
+    )
+    .filter(
+      (score): score is number =>
+        typeof score === "number"
+    );
+
+  if (scores.length === 0) {
+    return 0;
+  }
+
+  return Math.max(...scores);
 }
 
 
@@ -563,7 +584,7 @@ export default function JournalFeed({
         </p>
 
         <p className="mt-1 text-xs text-text-muted">
-          둘 중 누가 먼저 쓸까?
+          for len & min
         </p>
 
       </div>
@@ -576,17 +597,46 @@ export default function JournalFeed({
       <div className="space-y-10">
 
         {Object.entries(
-          groupedEntries
-        ).map(
-          ([
-            dateLabel,
-            dateEntries,
-          ]) => (
-             
-						<section
-							key={dateLabel}
-							className="gyul-day-block rounded-[34px]"
-						>
+					groupedEntries
+				).map(
+					([
+						dateLabel,
+						dateEntries,
+					]) => {
+						const dayIntensity =
+							getDayIntensity(
+								dateEntries
+							);
+
+						const softAlpha =
+							0.12 +
+							dayIntensity * 0.20;
+
+						const deepAlpha =
+							0.06 +
+							dayIntensity * 0.32;
+
+						const whiteAlpha =
+							0.84 -
+							dayIntensity * 0.12;
+
+						return (
+							<section
+								key={dateLabel}
+								className="gyul-day-block"
+								style={
+									{
+										"--gyul-soft-alpha":
+											softAlpha,
+
+										"--gyul-deep-alpha":
+											deepAlpha,
+
+										"--gyul-white-alpha":
+											whiteAlpha,
+									} as CSSProperties
+								}
+							>
 
               <div className="mb-5 flex items-center gap-3">
 
@@ -1167,8 +1217,9 @@ export default function JournalFeed({
               )}
 
             </section>
-          )
-        )}
+          );
+				}
+			)}
 
       </div>
 

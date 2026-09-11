@@ -33,6 +33,7 @@ export type Entry = {
   author: Author;
   images: EntryImage[];
   tag_links: EntryTag[];
+  analysis: EntryAnalysis | null;
 };
 
 
@@ -75,4 +76,16 @@ export type StreakResponse = {
     | "box"
     | "tree";
   next_milestone: number | null;
+};
+
+export type EntryAnalysis = {
+  id: number;
+  entry_id: number;
+  emotional_intensity: number;
+  length_score: number;
+  gyul_intensity: number;
+  mood_label: string;
+  detected_language: string | null;
+  analysis_source: string;
+  created_at: string;
 };

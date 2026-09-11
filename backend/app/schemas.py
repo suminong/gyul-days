@@ -61,6 +61,20 @@ class EntryTagResponse(BaseModel):
         from_attributes=True
     )
 
+class EntryAnalysisResponse(BaseModel):
+    id: int
+    entry_id: int
+    emotional_intensity: float
+    length_score: float
+    gyul_intensity: float
+    mood_label: str
+    detected_language: str | None
+    analysis_source: str
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
 class EntryResponse(BaseModel):
     id: int
@@ -75,10 +89,11 @@ class EntryResponse(BaseModel):
     tag_links: list[EntryTagResponse] = Field(
         default_factory=list
     )
-
+    analysis: EntryAnalysisResponse | None = None
     model_config = ConfigDict(
         from_attributes=True
     )
+    
 
 
 class UserCreate(BaseModel):
@@ -152,3 +167,4 @@ class StreakResponse(BaseModel):
     total_recorded_days: int
     stage: str
     next_milestone: int | None
+

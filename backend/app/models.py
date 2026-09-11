@@ -7,6 +7,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
@@ -156,6 +157,81 @@ class Entry(Base):
         passive_deletes=True,
     )
 
+    analysis: Mapped[
+        "EntryAnalysis | None"
+    ] = relationship(
+        back_populates="entry",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+class EntryAnalysis(Base):
+    __tablename__ = "entry_analyses"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True
+    )
+
+    entry_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "entries.id",
+            ondelete="CASCADE",
+        ),
+        unique=True,
+        nullable=False,
+    )
+
+    emotional_intensity: Mapped[
+        float
+    ] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    length_score: Mapped[
+        float
+    ] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    gyul_intensity: Mapped[
+        float
+    ] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    mood_label: Mapped[
+        str
+    ] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    detected_language: Mapped[
+        str | None
+    ] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    analysis_source: Mapped[
+        str
+    ] = mapped_column(
+        String(50),
+        default="ai",
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    entry: Mapped["Entry"] = relationship(
+        back_populates="analysis"
+    )
  
 class EntryImage(Base):
     __tablename__ = "entry_images"

@@ -5,6 +5,7 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+from app.entry_analysis import analyze_entry_text
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 from app.ai import suggest_tags
@@ -209,6 +210,9 @@ def get_space_entries(
                 models.Entry.tag_links
             ).selectinload(
                 models.EntryTag.tag
+            ),
+            selectinload(
+                models.Entry.analysis
             ),
         )
         .where(
@@ -469,7 +473,81 @@ def create_space_entry(
     db.commit()
     db.refresh(entry)
 
-    return entry
+
+    # Analyze journal text after the entry
+    # itself has safely been saved.
+    try:
+        analysis_result = (
+            analyze_entry_text(
+                entry.content
+            )
+        )
+
+        analysis = models.EntryAnalysis(
+            entry_id=entry.id,
+
+            emotional_intensity=
+                analysis_result[
+                    "emotional_intensity"
+                ],
+
+            length_score=
+                analysis_result[
+                    "length_score"
+                ],
+
+            gyul_intensity=
+                analysis_result[
+                    "gyul_intensity"
+                ],
+
+            mood_label=
+                analysis_result[
+                    "mood_label"
+                ],
+
+            detected_language=
+                analysis_result[
+                    "detected_language"
+                ],
+
+            analysis_source="ai",
+        )
+
+        db.add(analysis)
+        db.commit()
+
+    except Exception as error:
+        db.rollback()
+
+        print(
+            "Entry analysis failed:",
+            error,
+        )
+
+
+    # Reload with relationships
+    statement = (
+        select(models.Entry)
+        .options(
+            selectinload(
+                models.Entry.images
+            ),
+            selectinload(
+                models.Entry.tag_links
+            ).selectinload(
+                models.EntryTag.tag
+            ),
+            selectinload(
+                models.Entry.analysis
+            ),
+        )
+        .where(
+            models.Entry.id == entry.id
+        )
+    )
+
+    return db.scalar(statement)
 
 
 @router.patch(
