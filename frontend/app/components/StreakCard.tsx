@@ -659,7 +659,7 @@ function getStageMessage(
   streak: StreakResponse
 ) {
   if (streak.stage === "tree") {
-    return "your gyul tree is growing";
+    return "your 귤 tree is growing";
   }
 
   if (streak.next_milestone === null) {
@@ -673,7 +673,7 @@ function getStageMessage(
   if (streak.stage === "none") {
     return `${daysLeft} more ${
       daysLeft === 1 ? "day" : "days"
-    } until your first gyul`;
+    } until your first 귤...`;
   }
 
   return `${daysLeft} more ${

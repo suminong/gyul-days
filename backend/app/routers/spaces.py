@@ -12,6 +12,7 @@ from app.ai import suggest_tags
 from app import models
 from app.database import get_db
 from app.security import get_current_user
+import math
 
 from app.schemas import (
     AITagAccept, 
@@ -603,27 +604,49 @@ def update_space_entry(
     entry_id: int,
     entry_data: EntryUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(
+        get_current_user
+    ),
 ):
-    # Is this user a member of the space?
+    # 1. Check Space membership
     membership = db.scalar(
-        select(models.SpaceMember).where(
-            models.SpaceMember.space_id == space_id,
-            models.SpaceMember.user_id == current_user.id,
+        select(
+            models.SpaceMember
+        ).where(
+            models.SpaceMember.space_id
+            == space_id,
+
+            models.SpaceMember.user_id
+            == current_user.id,
         )
     )
 
     if membership is None:
         raise HTTPException(
             status_code=403,
-            detail="You are not a member of this space",
+            detail=(
+                "You are not a member "
+                "of this space"
+            ),
         )
 
-    # Find the entry inside this space
+
+    # 2. Find Entry + existing analysis
     entry = db.scalar(
-        select(models.Entry).where(
-            models.Entry.id == entry_id,
-            models.Entry.space_id == space_id,
+        select(
+            models.Entry
+        )
+        .options(
+            selectinload(
+                models.Entry.analysis
+            )
+        )
+        .where(
+            models.Entry.id
+            == entry_id,
+
+            models.Entry.space_id
+            == space_id,
         )
     )
 
@@ -633,28 +656,253 @@ def update_space_entry(
             detail="Entry not found",
         )
 
-    # Only the author can edit it
-    if entry.author_id != current_user.id:
+
+    # 3. Only author can edit
+    if (
+        entry.author_id
+        != current_user.id
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You can only edit your own entries",
+            detail=(
+                "You can only edit "
+                "your own entries"
+            ),
         )
 
+
+    content_changed = False
+
+
+    # 4. Validate new content
     if entry_data.content is not None:
-        new_content = entry_data.content.strip()
+        new_content = (
+            entry_data.content.strip()
+        )
 
         if not new_content:
             raise HTTPException(
                 status_code=400,
-                detail="Entry cannot be empty",
+                detail=(
+                    "Entry cannot be empty"
+                ),
             )
 
-        entry.content = new_content
+        if (
+            new_content
+            != entry.content
+        ):
+            entry.content = new_content
+            content_changed = True
 
+
+    # 5. Re-analyze only if
+    #    the text actually changed
+    if content_changed:
+
+        try:
+            analysis_result = (
+                analyze_entry_text(
+                    entry.content
+                )
+            )
+
+            emotional_intensity = (
+                analysis_result[
+                    "emotional_intensity"
+                ]
+            )
+
+            length_score = (
+                analysis_result[
+                    "length_score"
+                ]
+            )
+
+            gyul_intensity = (
+                analysis_result[
+                    "gyul_intensity"
+                ]
+            )
+
+            mood_label = (
+                analysis_result[
+                    "mood_label"
+                ]
+            )
+
+            detected_language = (
+                analysis_result[
+                    "detected_language"
+                ]
+            )
+
+            analysis_source = "ai"
+
+
+        except Exception as error:
+            print(
+                "Entry re-analysis failed:",
+                error,
+            )
+
+            # IMPORTANT:
+            # Do not keep the old analysis.
+            # Use a fresh local fallback
+            # based on the NEW text length.
+            length_score = (
+                1
+                - math.exp(
+                    -len(entry.content)
+                    / 700
+                )
+            )
+
+            emotional_intensity = 0.0
+
+            gyul_intensity = (
+                1
+                - (
+                    1
+                    - 0.60
+                    * length_score
+                )
+                * (
+                    1
+                    - 0.85
+                    * emotional_intensity
+                )
+            )
+
+            mood_label = "reflective"
+
+            detected_language = None
+
+            analysis_source = (
+                "length_fallback"
+            )
+
+
+        # 6. Update old analysis,
+        #    or create one if missing
+        analysis = entry.analysis
+
+        if analysis is None:
+            analysis = (
+                models.EntryAnalysis(
+                    entry_id=entry.id,
+
+                    emotional_intensity=
+                        emotional_intensity,
+
+                    length_score=
+                        length_score,
+
+                    gyul_intensity=
+                        gyul_intensity,
+
+                    mood_label=
+                        mood_label,
+
+                    detected_language=
+                        detected_language,
+
+                    analysis_source=
+                        analysis_source,
+                )
+            )
+
+            db.add(analysis)
+
+        else:
+            analysis.emotional_intensity = (
+                emotional_intensity
+            )
+
+            analysis.length_score = (
+                length_score
+            )
+
+            analysis.gyul_intensity = (
+                gyul_intensity
+            )
+
+            analysis.mood_label = (
+                mood_label
+            )
+
+            analysis.detected_language = (
+                detected_language
+            )
+
+            analysis.analysis_source = (
+                analysis_source
+            )
+
+
+    # 7. Save Entry + Analysis together
     db.commit()
-    db.refresh(entry)
 
-    return entry
+
+    # 8. Reload everything needed
+    #    by the frontend
+    statement = (
+        select(
+            models.Entry
+        )
+        .options(
+            selectinload(
+                models.Entry.images
+            ),
+
+            selectinload(
+                models.Entry.tag_links
+            ).selectinload(
+                models.EntryTag.tag
+            ),
+
+            selectinload(
+                models.Entry.analysis
+            ),
+        )
+        .where(
+            models.Entry.id
+            == entry.id
+        )
+    )
+
+    updated_entry = db.scalar(
+        statement
+    )
+
+
+    # 9. Re-create signed image URLs
+    #    because frontend replaces
+    #    the old Entry with this response
+    for image in updated_entry.images:
+
+        if (
+            image.storage_provider
+            == "supabase"
+            and image.storage_key
+        ):
+            try:
+                image.display_url = (
+                    create_signed_image_url(
+                        image.storage_key
+                    )
+                )
+
+            except Exception as error:
+                print(
+                    "Signed URL error:",
+                    error,
+                )
+
+                image.display_url = None
+
+
+    return updated_entry
 
 @router.delete(
     "/{space_id}/entries/{entry_id}",
