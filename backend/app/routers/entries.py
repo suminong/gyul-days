@@ -51,7 +51,6 @@ def get_entries(
 
     return db.scalars(statement).all()
 
-
 @router.get(
     "/entries/{entry_id}",
     response_model=EntryResponse,
@@ -59,6 +58,7 @@ def get_entries(
 def get_entry(
     entry_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     entry = db.get(models.Entry, entry_id)
 
@@ -68,8 +68,13 @@ def get_entry(
             detail="Entry not found",
         )
 
-    return entry
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this entry",
+        )
 
+    return entry
 
 @router.patch(
     "/entries/{entry_id}",
@@ -79,6 +84,7 @@ def update_entry(
     entry_id: int,
     entry_update: EntryUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     entry = db.get(models.Entry, entry_id)
 
@@ -88,6 +94,12 @@ def update_entry(
             detail="Entry not found",
         )
 
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this entry",
+        )
+
     if entry_update.content is not None:
         entry.content = entry_update.content
 
@@ -95,7 +107,6 @@ def update_entry(
     db.refresh(entry)
 
     return entry
-
 
 @router.delete(
     "/entries/{entry_id}",

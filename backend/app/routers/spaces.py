@@ -5,6 +5,8 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+from io import BytesIO
+from PIL import Image, UnidentifiedImageError
 from app.entry_analysis import analyze_entry_text
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -1103,7 +1105,29 @@ async def upload_entry_image(
             ),
         )
 
+    # Validate actual image content
+    expected_formats = {
+        "image/jpeg": "JPEG",
+        "image/png": "PNG",
+        "image/webp": "WEBP",
+    }
 
+    try:
+        with Image.open(BytesIO(contents)) as img:
+            actual_format = img.format
+            img.verify()
+
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image file",
+        )
+
+    if actual_format != expected_formats[content_type]:
+        raise HTTPException(
+            status_code=400,
+            detail="Image content does not match Content-Type",
+        )
     # 7. Generate random safe file name
     extension = (
         ALLOWED_IMAGE_TYPES[
@@ -1569,6 +1593,12 @@ def get_ai_tag_suggestions(
         raise HTTPException(
             status_code=404,
             detail="Entry not found",
+        )
+    # Only the entry author can request AI tag suggestions
+    if entry.author_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only request AI tags for your own entries",
         )
 
 
