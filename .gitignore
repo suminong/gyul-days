@@ -18,3 +18,8 @@ node_modules/
 
 # Local uploads
 backend/uploads/
+
+
+# Dependencies
+node_modules/
+node_modules */
