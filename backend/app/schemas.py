@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 class EntryCreate(BaseModel):
@@ -94,7 +94,7 @@ class EntryResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True
     )
-    
+
 
 
 class UserCreate(BaseModel):
@@ -169,3 +169,75 @@ class StreakResponse(BaseModel):
     stage: str
     next_milestone: int | None
 
+class SleepSessionCreate(BaseModel):
+    start_at: datetime
+    end_at: datetime
+
+    session_type: str = "main_sleep"
+    source: str = "manual"
+
+
+class SleepSessionResponse(BaseModel):
+    id: int
+    user_id: int
+
+    start_at: datetime
+    end_at: datetime
+
+    session_type: str
+    source: str
+
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class DailyCheckInCreate(BaseModel):
+    energy: int = Field(
+        ge=1,
+        le=5,
+    )
+
+    focus: int = Field(
+        ge=1,
+        le=5,
+    )
+
+    mood: int = Field(
+        ge=1,
+        le=5,
+    )
+
+    stress: int = Field(
+        ge=1,
+        le=5,
+    )
+
+    overall_condition: int = Field(
+        ge=1,
+        le=5,
+    )
+
+    note: str | None = None
+
+
+class DailyCheckInResponse(BaseModel):
+    id: int
+    user_id: int
+    checkin_date: date
+
+    energy: int
+    focus: int
+    mood: int
+    stress: int
+    overall_condition: int
+
+    note: str | None
+
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )

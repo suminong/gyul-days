@@ -20,7 +20,7 @@ import {
 } from "./types";
 
 import StreakCard from "./components/StreakCard";
-
+import DailyTracker from "./components/DailyTracker";
 
 export default function Home() {
   const router = useRouter();
@@ -653,9 +653,11 @@ export default function Home() {
 
       // 4. Reload feed so uploaded
       // images appear immediately
-      await loadEntries(
-        selectedSpaceId
-      );
+      if (selectedSpaceId === "all") {
+        await loadAllEntries();
+      } else if (typeof selectedSpaceId === "number") {
+        await loadEntries(selectedSpaceId);
+      }
 
       setStreakRefreshKey(
         (current) => current + 1
@@ -1577,6 +1579,7 @@ export default function Home() {
 
         </header>
 
+         <DailyTracker />
 
         {message && (
           <p className="mb-6 rounded-2xl bg-orange-light/20 px-4 py-3 text-sm text-orange-dark">

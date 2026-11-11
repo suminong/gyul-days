@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, entries, spaces, users
+from app.routers import auth, entries, spaces, users, me
 
 app = FastAPI(title="Gyul Days API")
- 
+
+
 
 
 app.add_middleware(
@@ -15,6 +16,7 @@ app.add_middleware(
     allow_methods=[
         "GET",
         "POST",
+        "PUT",
         "PATCH",
         "DELETE",
         "OPTIONS",
@@ -30,6 +32,7 @@ app.include_router(entries.router)
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(spaces.router)
+app.include_router(me.router)
 
 @app.get("/")
 def root():
